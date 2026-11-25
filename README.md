@@ -1,8 +1,8 @@
 # MXOnePeer
 
-`mxonepeer` 跑在 GrokBot（Debian 13，x86_64）上。它用 Python 和 `tailscale-py` 0.7.1 把 Tailscale 嵌在本进程里。你在 Tailscale 后台生成一个 auth key，写到这台机器上，节点就会出现在你的网络里。别的设备能访问它 Tailscale 地址上的状态接口。它不给这台机器建网卡。这个 Tailscale 库仍是 Alpha。
+`mxonepeer` 跑在 Debian 13（x86_64）上。它用 Python 和 `tailscale-py` 0.7.1 把 Tailscale 嵌在本进程里。你在 Tailscale 后台生成一个 auth key，写到这台机器上，节点就会出现在你的网络里。别的设备能访问它 Tailscale 地址上的状态接口。它不给这台机器建网卡。这个 Tailscale 库仍是 Alpha。
 
-安装（在 GrokBot 上，用 root，不编译）：
+安装（在这台机器上，用 root，不编译）：
 
 ```
 sudo ./deploy/install.sh

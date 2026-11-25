@@ -2,11 +2,11 @@
 
 日期：2026-11-25
 
-MXOnePeer 是装在 GrokBot 上的一个 Python 程序。GrokBot 是 Debian 13，x86_64，系统 Python 是 3.13。程序用 `tailscale-py` 0.7.1 把 Tailscale 嵌进本进程。操作者把 Tailscale 后台生成的 auth key 放在这台机器上，进程用它登录。同一账号下的其他设备能看到这个节点，并能访问本进程在 Tailscale 地址上提供的状态接口。
+MXOnePeer 是一个 Python 程序，装在 Debian 13（x86_64，系统 Python 3.13）上。程序用 `tailscale-py` 0.7.1 把 Tailscale 嵌进本进程。操作者把 Tailscale 后台生成的 auth key 放在这台机器上，进程用它登录。同一账号下的其他设备能看到这个节点，并能访问本进程在 Tailscale 地址上提供的状态接口。
 
 这一版只证明登录和连通。远程控制以后再加。
 
-`tailscale-py` 0.7.1 是 Tailscale 官方的 Alpha 库，底层是尚未做完第三方安全审计的 Rust 客户端。这一版接受这个限制。GrokBot 上不编译：安装时用 pip 下载 PyPI 上的预编译 wheel。
+`tailscale-py` 0.7.1 是 Tailscale 官方的 Alpha 库，底层是尚未做完第三方安全审计的 Rust 客户端。这一版接受这个限制。目标机器上不编译：安装时用 pip 下载 PyPI 上的预编译 wheel。
 
 ## 范围
 
@@ -14,17 +14,17 @@ MXOnePeer 是装在 GrokBot 上的一个 Python 程序。GrokBot 是 Debian 13�
 
 - 一个常驻进程，节点名默认 `mxonepeer`。
 - 用户态 Tailscale。不创建系统网卡，不需要 root。
-- 用 `TS_AUTHKEY` 登录。密钥以 `tskey-auth-` 开头。没有浏览器登录。
+- 用 auth key 或本机页面上的 Tailscale 账号登录。auth key 以 `tskey-auth-` 开头。
 - 登录后的节点密钥记在 `/var/lib/mxonepeer/node-keys.json`。重启后仍是同一个节点。
 - 在该节点的 Tailscale IPv4 和 IPv6 的 `8787` 端口提供 `GET /status`。
 
 不做这些：
 
-- 不把 GrokBot 整机加入 Tailscale。SSH 和其他程序不能通过这个节点访问。
+- 不把整机加入 Tailscale。SSH 和其他程序不能通过这个节点访问。
 - 不在局域网网卡上监听。
-- 不提供登出命令，也不提供管理页面。
+- 不提供登出命令。管理只在本机 `127.0.0.1:8788`。
 - 不实现远程控制。
-- 不在 GrokBot 上安装 Go、Rust 或编译器。
+- 不在目标机器上安装 Go、Rust 或编译器。
 
 ## 进程
 
@@ -99,7 +99,7 @@ systemd 使用 `Restart=on-failure`。正常停止不会被立刻拉起。
 
 ## 安装
 
-在 GrokBot 上用 root 执行 `deploy/install.sh`。脚本：
+在目标机器上用 root 执行 `deploy/install.sh`。脚本：
 
 1. 要求 `python3` 至少 3.13。创建虚拟环境失败时，提示安装 `python3-venv`。
 2. 创建系统用户和组 `mxonepeer`：`--system`，shell 为 `/usr/sbin/nologin`，家目录为 `/var/lib/mxonepeer`。已存在则不修改。
@@ -107,8 +107,8 @@ systemd 使用 `Restart=on-failure`。正常停止不会被立刻拉起。
 4. 把 `mxonepeer` 包拷到 `/opt/mxonepeer/mxonepeer`。
 5. 用 `python3 -m venv /opt/mxonepeer/venv`，再执行 `/opt/mxonepeer/venv/bin/pip install tailscale-py==0.7.1`。这一步下载预编译 wheel，不在机器上编译。
 6. 安装 systemd 单元。
-7. `/etc/mxonepeer.env` 不存在时，创建一个只有 `TS_AUTHKEY=` 的文件，所有者 root，组 `mxonepeer`，权限 `0640`。此时不启动服务。
-8. 文件里已有 `TS_AUTHKEY=tskey-auth-` 开头的值时，才 `enable` 并 `restart`。
+7. `/etc/mxonepeer.env` 不存在时，创建一个只有 `TS_AUTHKEY=` 的文件，所有者 root，组 `mxonepeer`，权限 `0640`。已有文件不覆盖。
+8. `enable` 并 `restart`。没有密钥时服务也保持运行，以便打开本机登录页。
 
 服务：
 
@@ -131,11 +131,17 @@ MXOnePeer/
   mxonepeer/__init__.py
   mxonepeer/__main__.py
   mxonepeer/main.py
+  mxonepeer/runtime.py
+  mxonepeer/admin.py
+  mxonepeer/mcp.py
+  mxonepeer/keys.py
   mxonepeer/status.py
   mxonepeer/httpio.py
   mxonepeer/node.py
   tests/test_status.py
   tests/test_httpio.py
+  tests/test_admin.py
+  tests/test_main.py
   deploy/mxonepeer.service
   deploy/install.sh
   README.md
@@ -145,8 +151,12 @@ MXOnePeer/
 
 - `status`：把主机名、DNS 名、地址和后端状态格式化成 JSON。不导入 tailscale。
 - `httpio`：解析一个 HTTP 请求，生成 `200`、`404` 或 `405`。不导入 tailscale。
+- `keys`：检查、保存和掩码 auth key。
+- `admin`：本机登录页。
+- `mcp`：本机 MCP，工具是 `status`、`set_auth_key`、`start_login`。
 - `node`：调用 `tailscale-py`，在 Tailscale 地址上接受连接并交出状态。
-- `main`：解析参数、检查密钥、接信号。
+- `runtime`：按密钥或账号登录维持连接。
+- `main`：解析参数、接信号。
 
 `requirements.txt` 只有一行：`tailscale-py==0.7.1`。
 
@@ -164,13 +174,13 @@ MXOnePeer/
 
 命令是 `python3 -m unittest discover -s tests`。
 
-装到 GrokBot 后的人工确认：
+装到目标机器后的人工确认：
 
 1. `/etc/mxonepeer.env` 里写好 auth key，服务处于运行。
 2. Tailscale 管理页或其他已登录设备的 `tailscale status` 里能看到这个节点。
 3. 在另一台已加入同一账号的设备上执行 `curl http://mxonepeer:8787/status`。返回 `200`，`online` 为 true，`tailscaleIPs` 里有 `100.` 开头的地址。MagicDNS 不可用时，改用 Tailscale IP 和端口 `8787`。
-4. GrokBot 的系统网卡上没有 Tailscale 接口。对 `127.0.0.1:8787` 和局域网地址的 `8787` 连接失败。
+4. 目标机器的系统网卡上没有 Tailscale 接口。对 `127.0.0.1:8787` 和局域网地址的 `8787` 连接失败。
 
 ## 完成标准
 
-GrokBot 上的 `mxonepeer` 服务用操作者的 auth key 保持在线。其他设备能看到该节点，并能从 Tailscale 地址取到 `/status`。安装过程没有在 GrokBot 上编译。GrokBot 的系统网卡上没有 Tailscale 接口。
+目标机器上的 `mxonepeer` 服务用操作者的 auth key 保持在线。其他设备能看到该节点，并能从 Tailscale 地址取到 `/status`。安装过程没有在目标机器上编译。目标机器的系统网卡上没有 Tailscale 接口。

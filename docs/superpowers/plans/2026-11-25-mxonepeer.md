@@ -10,9 +10,9 @@
 
 ## Global Constraints
 
-- GrokBot is Debian 13, x86_64, system Python 3.13. Do not compile on that machine. Do not install Go or Rust there.
+- The target machine is Debian 13, x86_64, system Python 3.13. Do not compile on that machine. Do not install Go or Rust there.
 - Embed Tailscale with `tailscale.connect(state_file, auth_key, hostname=...)`. Userspace only. No TUN and no root for the service process.
-- Login is `TS_AUTHKEY` and the value must start with `tskey-auth-`. There is no browser login in this version.
+- Login is an auth key starting with `tskey-auth-`, or Tailscale account login from the local admin page.
 - State file is `/var/lib/mxonepeer/node-keys.json`. Directory mode is `0750`.
 - Listen with `tcp_listen` on `ipv4_addr()` and `ipv6_addr()`, port `8787`. Do not bind a LAN address.
 - `GET /status` returns the JSON document in the spec. Other paths are `404`. Other methods are `405` with `Allow: GET`. One request per connection.
@@ -65,7 +65,7 @@ Expected: exit 0.
 
 `deploy/mxonepeer.service` uses `/opt/mxonepeer/venv/bin/python`, `EnvironmentFile=/etc/mxonepeer.env`, and `--port 8787`.
 
-### Task 3: Manual check on GrokBot
+### Task 3: Manual check on the target machine
 
 Copy this directory to the Debian 13 machine and run:
 
@@ -86,4 +86,4 @@ From another device on the same account:
 curl http://mxonepeer:8787/status
 ```
 
-Expected: HTTP 200, `"online": true`, and a `tailscaleIPs` value starting with `100.`. `ip addr` on GrokBot shows no Tailscale interface. Connections to `127.0.0.1:8787` and to the LAN address on port 8787 fail.
+Expected: HTTP 200, `"online": true`, and a `tailscaleIPs` value starting with `100.`. `ip addr` on the machine shows no Tailscale interface. Connections to `127.0.0.1:8787` and to the LAN address on port 8787 fail.

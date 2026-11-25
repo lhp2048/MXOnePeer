@@ -1,1 +1,1 @@
-"""MXOnePeer runs a userspace Tailscale node on the GrokBot."""
+"""MXOnePeer runs a userspace Tailscale node."""
