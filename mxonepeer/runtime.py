@@ -4,7 +4,7 @@ import secrets
 import sys
 
 from mxonepeer.admin import Board, authorized, extract_login_url, serve_admin
-from mxonepeer.hostname import read_hostname, write_hostname
+from mxonepeer.hostname import ensure_hostname
 from mxonepeer.keys import normalize_auth_key, read_auth_key, write_auth_key
 from mxonepeer.node import connect_device, serve_device
 
@@ -16,11 +16,7 @@ async def run(hostname, state_dir, port, admin_host, admin_port, env_key, stop):
             write_auth_key(state_dir, normalize_auth_key(env_key))
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
-    if not read_hostname(state_dir):
-        try:
-            write_hostname(state_dir, hostname)
-        except ValueError:
-            write_hostname(state_dir, "mxonepeer")
+    ensure_hostname(state_dir, hostname)
     board = Board(secrets.token_urlsafe(16))
     board.refresh_key(state_dir)
     server = await serve_admin(admin_host, admin_port, board, state_dir)
@@ -29,7 +25,7 @@ async def run(hostname, state_dir, port, admin_host, admin_port, env_key, stop):
         while not stop.is_set():
             action = board.action
             board.action = ""
-            name = read_hostname(state_dir) or "mxonepeer"
+            name = ensure_hostname(state_dir, hostname)
             board.requested_hostname = name
             if action == "login":
                 await _interactive(name, state_dir, port, board, stop)

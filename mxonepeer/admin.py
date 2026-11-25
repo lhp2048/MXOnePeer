@@ -106,7 +106,7 @@ footer { margin-top: 1.1rem; color: #625c53; font-size: 0.86rem; }
 %s%s
 <section class="card">
 <h2>节点名称</h2>
-<p>向 Tailscale 申请这个名称。账号里已有同名节点时，实际名称可能带序号。</p>
+<p>未设置时，默认用当前主机名加上一块网卡的 MAC 地址。向 Tailscale 申请这个名称。账号里已有同名节点时，实际名称可能带序号。</p>
 <form method="post" action="/hostname">
 <input type="hidden" name="token" value="%s">
 <label>节点名称<input type="text" name="hostname" value="%s" autocomplete="off" spellcheck="false"></label>

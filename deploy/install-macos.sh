@@ -75,7 +75,7 @@ if [ -f "\$dest/env" ]; then
 fi
 export PYTHONPATH="\$dest"
 export TS_RS_EXPERIMENT=this_is_unstable_software
-exec "\$dest/venv/bin/python" -m mxonepeer --hostname mxonepeer --state-dir "\$dest" --port 18020 --admin-host 127.0.0.1 --admin-port 8788
+exec "\$dest/venv/bin/python" -m mxonepeer --state-dir "\$dest" --port 18020 --admin-host 127.0.0.1 --admin-port 8788
 EOF
 chmod 700 "$dest/run.sh"
 

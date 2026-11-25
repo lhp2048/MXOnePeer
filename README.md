@@ -16,12 +16,12 @@ sudo ./deploy/install.sh
 
 Mac 会把程序装进 `~/Library/Application Support/mxonepeer`，并用登录项 `com.mxonepeer` 保持运行。Intel Mac 没有可用的预编译包。
 
-服务起来后，在这台机器上打开 `http://127.0.0.1:8788/`。页面可以设置节点名称、粘贴 auth key，也可以开始 Tailscale 账号登录。同一个地址提供本机 MCP：`http://127.0.0.1:8788/mcp`。工具有 `status`、`set_hostname`、`set_auth_key`、`start_login`。节点名称用小写字母、数字和连字符。保存后会重新连接，页面上的当前名称以 Tailscale 返回的为准。页面和 MCP 都只听本机，不出现在局域网和 Tailscale 上。从另一台电脑操作时，先做隧道：`ssh -L 8788:127.0.0.1:8788 <这台机器>`，再在那边打开同一个地址。
+服务起来后，在这台机器上打开 `http://127.0.0.1:8788/`。页面可以设置节点名称、粘贴 auth key，也可以开始 Tailscale 账号登录。同一个地址提供本机 MCP：`http://127.0.0.1:8788/mcp`。工具有 `status`、`set_hostname`、`set_auth_key`、`start_login`。节点名称用小写字母、数字和连字符。未手动设置时，默认名称是当前主机名加上一块网卡的 MAC 地址（去掉冒号，例如 `myhost-822b383dbcd0`）。保存后会重新连接，页面上的当前名称以 Tailscale 返回的为准。页面和 MCP 都只听本机，不出现在局域网和 Tailscale 上。从另一台电脑操作时，先做隧道：`ssh -L 8788:127.0.0.1:8788 <这台机器>`，再在那边打开同一个地址。
 
 也可以不打开页面。Debian 上把 auth key 写进 `/etc/mxonepeer.env`，一行，形如 `TS_AUTHKEY=tskey-auth-...`。文件权限保持 `0640`。写好后执行 `sudo systemctl restart mxonepeer`。Mac 上写进 `~/Library/Application Support/mxonepeer/env`，权限 `0600`，然后执行 `launchctl kickstart -k gui/$(id -u)/com.mxonepeer`。
 
-在另一台已登录同一账号的设备上检查：
+在另一台已登录同一账号的设备上检查（把节点名称换成这台机器的名称）：
 
 ```
-curl http://mxonepeer:18020/status
+curl http://<节点名称>:18020/status
 ```

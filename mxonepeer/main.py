@@ -20,7 +20,7 @@ _CLEARED = (
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="mxonepeer")
-    parser.add_argument("--hostname", default="mxonepeer")
+    parser.add_argument("--hostname", default="")
     parser.add_argument("--state-dir", default="/var/lib/mxonepeer")
     parser.add_argument("--port", type=int, default=18020)
     parser.add_argument("--admin-host", default="127.0.0.1")
