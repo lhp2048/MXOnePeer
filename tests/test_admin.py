@@ -7,6 +7,7 @@ import unittest
 from urllib.parse import urlencode
 
 from mxonepeer.admin import Board, authorized, decide, extract_login_url, serve_admin
+from mxonepeer.hostname import normalize_hostname, read_hostname, write_hostname
 from mxonepeer.keys import normalize_auth_key, read_auth_key, write_auth_key
 
 
@@ -34,6 +35,7 @@ class PageTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("text/html", content_type)
         text = body.decode("utf-8")
+        self.assertIn("保存节点名称", text)
         self.assertIn("保存 auth key", text)
         self.assertIn("用 Tailscale 账号登录", text)
         self.assertIn("未配置", text)
@@ -74,6 +76,38 @@ class PageTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("text/html", content_type)
         self.assertIn("tskey-auth-", payload.decode("utf-8"))
+
+
+class HostnameTests(unittest.TestCase):
+    def test_lowercases_and_keeps_the_file_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(write_hostname(directory, " My-Node "), "my-node")
+            self.assertEqual(read_hostname(directory), "my-node")
+            mode = stat.S_IMODE(os.stat(os.path.join(directory, "hostname")).st_mode)
+            self.assertEqual(mode, 0o600)
+
+    def test_rejects_a_name_that_starts_with_a_hyphen(self):
+        with self.assertRaises(ValueError):
+            normalize_hostname("-mxonepeer")
+
+    def test_post_saves_the_name_and_reconnects(self):
+        board = Board("token-1")
+        body = urlencode({"token": "token-1", "hostname": "Desk-1"}).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            status, _kind, _body = decide("POST", "/hostname", body, board, directory)
+            self.assertEqual(read_hostname(directory), "desk-1")
+        self.assertEqual(status, 303)
+        self.assertEqual(board.action, "name")
+
+    def test_bad_name_stays_on_the_page(self):
+        board = Board("token-1")
+        body = urlencode({"token": "token-1", "hostname": "-no"}).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            status, content_type, payload = decide("POST", "/hostname", body, board, directory)
+            self.assertEqual(read_hostname(directory), "")
+        self.assertEqual(status, 400)
+        self.assertIn("text/html", content_type)
+        self.assertIn("连字符".encode("utf-8"), payload)
 
 
 class LoginUrlTests(unittest.TestCase):
@@ -142,6 +176,13 @@ class ServerTests(unittest.TestCase):
             port = server.sockets[0].getsockname()[1]
             listed = await _rpc(port, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
             names = [item["name"] for item in listed["result"]["tools"]]
+            renamed = await _rpc(port, {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "set_hostname", "arguments": {"hostname": "mac-node"}},
+            })
+            rename_text = renamed["result"]["content"][0]["text"]
             saved = await _rpc(port, {
                 "jsonrpc": "2.0",
                 "id": 2,
@@ -152,7 +193,9 @@ class ServerTests(unittest.TestCase):
             server.close()
             await server.wait_closed()
             self.assertEqual(read_auth_key(directory), "tskey-auth-example")
-        self.assertEqual(names, ["status", "set_auth_key", "start_login"])
+            self.assertEqual(read_hostname(directory), "mac-node")
+        self.assertEqual(names, ["status", "set_hostname", "set_auth_key", "start_login"])
+        self.assertIn("mac-node", rename_text)
         self.assertNotIn("tskey-auth-example", text)
         self.assertIn("…mple", text)
         self.assertEqual(board.action, "key")

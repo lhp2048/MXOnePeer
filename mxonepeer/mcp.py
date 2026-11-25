@@ -1,12 +1,14 @@
 import json
 
+from mxonepeer.hostname import read_hostname, write_hostname
 from mxonepeer.keys import write_auth_key
 
 PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18")
 PREFERRED = "2025-03-26"
 INSTRUCTIONS = (
     "MXOnePeer 的本机登录控制。"
-    "status 查看节点是否在线、主机名、Tailscale 地址、auth key 是否已配置，以及账号登录链接。"
+    "status 查看节点是否在线、当前名称、要申请的名称、Tailscale 地址、auth key 是否已配置，以及账号登录链接。"
+    "set_hostname 保存节点名称并重新连接。名称用小写字母、数字和连字符，长度 1 到 63。"
     "set_auth_key 保存以 tskey-auth- 开头的密钥。"
     "start_login 开始 Tailscale 账号登录；链接还没返回时，过几秒再调用 status。"
 )
@@ -76,9 +78,16 @@ def _tools():
         "required": ["auth_key"],
         "additionalProperties": False,
     }
+    hostname = {
+        "type": "object",
+        "properties": {"hostname": {"type": "string"}},
+        "required": ["hostname"],
+        "additionalProperties": False,
+    }
     return {
         "tools": [
-            {"name": "status", "description": "查看本机节点是否在线、主机名、Tailscale 地址、auth key 是否已配置，以及账号登录链接。", "inputSchema": empty},
+            {"name": "status", "description": "查看本机节点是否在线、当前名称、要申请的名称、Tailscale 地址、auth key 是否已配置，以及账号登录链接。", "inputSchema": empty},
+            {"name": "set_hostname", "description": "保存节点名称并重新连接。使用小写字母、数字和连字符，长度 1 到 63，不能以连字符开头或结尾。", "inputSchema": hostname},
             {"name": "set_auth_key", "description": "保存 Tailscale auth key。必须以 tskey-auth- 开头。", "inputSchema": key},
             {"name": "start_login", "description": "开始 Tailscale 账号登录。登录链接可能要过几秒才出现，之后再调用 status。", "inputSchema": empty},
         ]
@@ -94,6 +103,21 @@ def _call(message, board, state_dir):
     if not isinstance(arguments, dict):
         raise _Invalid("Invalid params")
     if name == "status":
+        board.refresh_key(state_dir)
+        return _tool_text(json.dumps(_status(board), ensure_ascii=False), False)
+    if name == "set_hostname":
+        previous = read_hostname(state_dir)
+        try:
+            saved = write_hostname(state_dir, arguments.get("hostname", ""))
+        except ValueError as exc:
+            raise _ToolError("节点名称要用小写字母、数字和连字符，长度 1 到 63，并且不能用连字符开头或结尾。") from exc
+        board.requested_hostname = saved
+        board.login_error = ""
+        if saved == previous:
+            board.notice = "节点名称没有变化。"
+        else:
+            board.notice = "节点名称已保存，正在连接。"
+            board.poke("name")
         board.refresh_key(state_dir)
         return _tool_text(json.dumps(_status(board), ensure_ascii=False), False)
     if name == "set_auth_key":
@@ -120,6 +144,7 @@ def _status(board):
     return {
         "online": board.online,
         "hostname": board.hostname,
+        "requestedHostname": board.requested_hostname,
         "tailscaleIPs": list(board.ips),
         "authKeyConfigured": board.configured,
         "authKeyMasked": board.masked,

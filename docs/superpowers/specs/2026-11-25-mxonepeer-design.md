@@ -2,7 +2,7 @@
 
 日期：2026-11-25
 
-MXOnePeer 是一个 Python 程序，装在 Debian 13（x86_64，系统 Python 3.13）上。程序用 `tailscale-py` 0.7.1 把 Tailscale 嵌进本进程。操作者把 Tailscale 后台生成的 auth key 放在这台机器上，进程用它登录。同一账号下的其他设备能看到这个节点，并能访问本进程在 Tailscale 地址上提供的状态接口。
+MXOnePeer 是一个 Python 程序，可以装在 Debian 13（x86_64，系统 Python 3.13）或 Apple 芯片的 Mac（Python 3.12 或更新）上。程序用 `tailscale-py` 0.7.1 把 Tailscale 嵌进本进程。操作者把 Tailscale 后台生成的 auth key 放在这台机器上，进程用它登录。同一账号下的其他设备能看到这个节点，并能访问本进程在 Tailscale 地址上提供的状态接口。
 
 这一版只证明登录和连通。远程控制以后再加。
 
@@ -50,7 +50,9 @@ auth key 写到 `<state-dir>/authkey`，权限 `0600`。环境变量 `TS_AUTHKEY
 
 账号登录调用 `tailscale.connect` 且不带密钥。库若提供 `is_authorized`，页面显示其中的登录链接；批准后开始在 Tailscale 地址上提供 `/status`。库没有这个方法时，页面说明要改用 auth key。
 
-同一个本机端口提供 MCP，路径是 `POST /mcp`。协议版本接受 `2024-11-05`、`2025-03-26`、`2025-06-18`。工具有三个：`status` 查看在线状态、主机名、地址、密钥是否已配置和登录链接；`set_auth_key` 保存 auth key；`start_login` 开始账号登录。返回里不包含完整密钥。请求必须是 `application/json`。
+页面也可以设置节点名称。名称写成状态目录里的 `hostname` 文件，权限 `0600`。规则是小写字母、数字和连字符，长度 1 到 63，不能用连字符开头或结尾。保存一个新名称后重新连接，并把这个名称传给 `tailscale.connect`。页面上的当前名称来自 `self_node().hostname`。
+
+同一个本机端口提供 MCP，路径是 `POST /mcp`。协议版本接受 `2024-11-05`、`2025-03-26`、`2025-06-18`。工具有四个：`status` 查看在线状态、当前名称、要申请的名称、地址、密钥是否已配置和登录链接；`set_hostname` 保存节点名称；`set_auth_key` 保存 auth key；`start_login` 开始账号登录。返回里不包含完整密钥。请求必须是 `application/json`。
 
 换账号：在页面或 MCP 保存新的 auth key，或停掉服务后删掉 `node-keys.json` 和 `authkey` 再登录。密钥不写入日志；异常文本里的密钥替换成 `tskey-auth-***`。
 
@@ -121,6 +123,8 @@ systemd 使用 `Restart=on-failure`。正常停止不会被立刻拉起。
 - `Restart=on-failure`，`RestartSec=5`
 - `NoNewPrivileges=true`
 
+在 Apple 芯片的 Mac 上，由当前用户执行 `deploy/install-macos.sh`，不使用 root。脚本要求 Python 至少 3.12。程序和虚拟环境放在 `~/Library/Application Support/mxonepeer`，状态文件也在这个目录。`~/Library/LaunchAgents/com.mxonepeer.plist` 在登录后启动它，异常退出后重新拉起。可选的 auth key 写在同目录的 `env` 文件，权限 `0600`，格式与 Debian 的环境文件相同。Intel Mac 没有预编译 wheel，脚本直接退出。
+
 密钥不写进仓库，也不写进安装脚本。
 
 ## 代码布局
@@ -134,6 +138,7 @@ MXOnePeer/
   mxonepeer/runtime.py
   mxonepeer/admin.py
   mxonepeer/mcp.py
+  mxonepeer/hostname.py
   mxonepeer/keys.py
   mxonepeer/status.py
   mxonepeer/httpio.py
@@ -144,6 +149,7 @@ MXOnePeer/
   tests/test_main.py
   deploy/mxonepeer.service
   deploy/install.sh
+  deploy/install-macos.sh
   README.md
 ```
 
@@ -151,9 +157,10 @@ MXOnePeer/
 
 - `status`：把主机名、DNS 名、地址和后端状态格式化成 JSON。不导入 tailscale。
 - `httpio`：解析一个 HTTP 请求，生成 `200`、`404` 或 `405`。不导入 tailscale。
+- `hostname`：检查和保存节点名称。
 - `keys`：检查、保存和掩码 auth key。
 - `admin`：本机登录页。
-- `mcp`：本机 MCP，工具是 `status`、`set_auth_key`、`start_login`。
+- `mcp`：本机 MCP，工具是 `status`、`set_hostname`、`set_auth_key`、`start_login`。
 - `node`：调用 `tailscale-py`，在 Tailscale 地址上接受连接并交出状态。
 - `runtime`：按密钥或账号登录维持连接。
 - `main`：解析参数、接信号。

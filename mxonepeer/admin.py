@@ -1,6 +1,7 @@
 import asyncio
 from urllib.parse import parse_qs
 
+from mxonepeer.hostname import read_hostname, write_hostname
 from mxonepeer.keys import mask_auth_key, read_auth_key, write_auth_key
 from mxonepeer.mcp import handle as handle_mcp
 
@@ -18,6 +19,7 @@ class Board:
         self.masked = ""
         self.online = False
         self.hostname = ""
+        self.requested_hostname = ""
         self.ips = []
         self.action = ""
         self.generation = 0
@@ -33,6 +35,7 @@ class Board:
         key = read_auth_key(state_dir)
         self.configured = bool(key)
         self.masked = mask_auth_key(key)
+        self.requested_hostname = read_hostname(state_dir)
 
 
 def page(board):
@@ -75,7 +78,7 @@ h1 { margin: 0; font-size: 1.45rem; letter-spacing: -0.03em; }
 h2 { margin: 0 0 0.35rem; font-size: 1.05rem; }
 .card p { margin: 0.35rem 0 0; color: #4e4942; }
 label { display: block; margin-top: 0.9rem; font-size: 0.86rem; color: #4e4942; }
-input[type=password] { width: 100%%; box-sizing: border-box; margin-top: 0.35rem; padding: 0.7rem 0.75rem; border-radius: 0.7rem; border: 1px solid #d9d0c2; background: #fff; color: #1c1915; font: inherit; }
+input[type=password], input[type=text] { width: 100%%; box-sizing: border-box; margin-top: 0.35rem; padding: 0.7rem 0.75rem; border-radius: 0.7rem; border: 1px solid #d9d0c2; background: #fff; color: #1c1915; font: inherit; }
 button { margin-top: 0.9rem; border: 0; border-radius: 0.7rem; padding: 0.65rem 0.95rem; font: inherit; font-weight: 650; cursor: pointer; }
 .primary { background: #0f6e6e; color: #f7f3ea; }
 .quiet { background: #efeae1; color: #1c1915; }
@@ -102,6 +105,15 @@ footer { margin-top: 1.1rem; color: #625c53; font-size: 0.86rem; }
 </section>
 %s%s
 <section class="card">
+<h2>节点名称</h2>
+<p>向 Tailscale 申请这个名称。账号里已有同名节点时，实际名称可能带序号。</p>
+<form method="post" action="/hostname">
+<input type="hidden" name="token" value="%s">
+<label>节点名称<input type="text" name="hostname" value="%s" autocomplete="off" spellcheck="false"></label>
+<button class="primary" type="submit">保存节点名称</button>
+</form>
+</section>
+<section class="card">
 <h2>auth key</h2>
 <p>从 Tailscale 后台复制以 tskey-auth- 开头的密钥。保存后只显示末四位。</p>
 <form method="post" action="/authkey">
@@ -123,18 +135,34 @@ footer { margin-top: 1.1rem; color: #625c53; font-size: 0.86rem; }
 </main>
 </body>
 </html>
-""" % (pill, state, host, ips, key_state, notice, error, _esc(board.token), _esc(board.token), login, mcp)
+""" % (
+    pill,
+    state,
+    host,
+    ips,
+    key_state,
+    notice,
+    error,
+    _esc(board.token),
+    _esc(board.requested_hostname),
+    _esc(board.token),
+    _esc(board.token),
+    login,
+    mcp,
+)
 
 
 def decide(method, path, body, board, state_dir):
     if method == "GET" and path == "/":
         board.refresh_key(state_dir)
         return 200, "text/html; charset=utf-8", page(board).encode("utf-8")
-    if method != "POST" or path not in ("/authkey", "/login"):
+    if method != "POST" or path not in ("/authkey", "/login", "/hostname"):
         return 404, "text/plain; charset=utf-8", b"Not Found\n"
     form = parse_qs(body.decode("utf-8", "replace"), keep_blank_values=True)
     if form.get("token", [""])[0] != board.token:
         return 403, "text/plain; charset=utf-8", b"Forbidden\n"
+    if path == "/hostname":
+        return _save_hostname(form.get("hostname", [""])[0], board, state_dir)
     if path == "/login":
         board.login_error = ""
         board.notice = "正在向 Tailscale 申请登录链接。"
@@ -151,6 +179,26 @@ def decide(method, path, body, board, state_dir):
     board.login_url = ""
     board.notice = "auth key 已保存，正在连接。"
     board.poke("key")
+    board.refresh_key(state_dir)
+    return 303, "text/plain; charset=utf-8", b""
+
+
+def _save_hostname(value, board, state_dir):
+    previous = read_hostname(state_dir)
+    try:
+        name = write_hostname(state_dir, value)
+    except ValueError:
+        board.login_error = "节点名称要用小写字母、数字和连字符，长度 1 到 63，并且不能用连字符开头或结尾。"
+        board.refresh_key(state_dir)
+        return 400, "text/html; charset=utf-8", page(board).encode("utf-8")
+    board.login_error = ""
+    board.requested_hostname = name
+    if name == previous:
+        board.notice = "节点名称没有变化。"
+        board.refresh_key(state_dir)
+        return 303, "text/plain; charset=utf-8", b""
+    board.notice = "节点名称已保存，正在连接。"
+    board.poke("name")
     board.refresh_key(state_dir)
     return 303, "text/plain; charset=utf-8", b""
 
