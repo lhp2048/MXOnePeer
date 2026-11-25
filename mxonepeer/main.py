@@ -5,7 +5,7 @@ import os
 import signal
 import sys
 
-from mxgrokbot.runtime import run
+from mxonepeer.runtime import run
 
 _CLEARED = (
     "TS_AUTH_KEY",
@@ -19,9 +19,9 @@ _CLEARED = (
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="mxgrokbot")
-    parser.add_argument("--hostname", default="mxgrokbot")
-    parser.add_argument("--state-dir", default="/var/lib/mxgrokbot")
+    parser = argparse.ArgumentParser(prog="mxonepeer")
+    parser.add_argument("--hostname", default="mxonepeer")
+    parser.add_argument("--state-dir", default="/var/lib/mxonepeer")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--admin-host", default="127.0.0.1")
     parser.add_argument("--admin-port", type=int, default=8788)

@@ -3,9 +3,9 @@ import os
 import secrets
 import sys
 
-from mxgrokbot.admin import Board, authorized, extract_login_url, serve_admin
-from mxgrokbot.keys import normalize_auth_key, read_auth_key, write_auth_key
-from mxgrokbot.node import connect_device, serve_device
+from mxonepeer.admin import Board, authorized, extract_login_url, serve_admin
+from mxonepeer.keys import normalize_auth_key, read_auth_key, write_auth_key
+from mxonepeer.node import connect_device, serve_device
 
 
 async def run(hostname, state_dir, port, admin_host, admin_port, env_key, stop):

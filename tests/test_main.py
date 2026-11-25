@@ -1,6 +1,6 @@
 import unittest
 
-from mxgrokbot.main import main
+from mxonepeer.main import main
 
 
 class MainTests(unittest.TestCase):

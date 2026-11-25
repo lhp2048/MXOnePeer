@@ -1,11 +1,11 @@
 import json
 
-from mxgrokbot.keys import write_auth_key
+from mxonepeer.keys import write_auth_key
 
 PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18")
 PREFERRED = "2025-03-26"
 INSTRUCTIONS = (
-    "MXGrokBotControl 的本机登录控制。"
+    "MXOnePeer 的本机登录控制。"
     "status 查看节点是否在线、主机名、Tailscale 地址、auth key 是否已配置，以及账号登录链接。"
     "set_auth_key 保存以 tskey-auth- 开头的密钥。"
     "start_login 开始 Tailscale 账号登录；链接还没返回时，过几秒再调用 status。"
@@ -63,7 +63,7 @@ def _initialize(message):
     return {
         "protocolVersion": _agree(message),
         "capabilities": {"tools": {"listChanged": False}},
-        "serverInfo": {"name": "MXGrokBotControl", "version": "0.1.0"},
+        "serverInfo": {"name": "MXOnePeer", "version": "0.1.0"},
         "instructions": INSTRUCTIONS,
     }
 

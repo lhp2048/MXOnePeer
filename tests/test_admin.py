@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from urllib.parse import urlencode
 
-from mxgrokbot.admin import Board, authorized, decide, extract_login_url, serve_admin
-from mxgrokbot.keys import normalize_auth_key, read_auth_key, write_auth_key
+from mxonepeer.admin import Board, authorized, decide, extract_login_url, serve_admin
+from mxonepeer.keys import normalize_auth_key, read_auth_key, write_auth_key
 
 
 class KeyTests(unittest.TestCase):

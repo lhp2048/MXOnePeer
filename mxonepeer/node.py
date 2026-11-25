@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 
-from mxgrokbot.httpio import parse_request, response_for
+from mxonepeer.httpio import parse_request, response_for
 
 HEADER_LIMIT = 8192
 HEADER_TIMEOUT = 5

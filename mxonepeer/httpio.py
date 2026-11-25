@@ -1,4 +1,4 @@
-from mxgrokbot.status import dumps
+from mxonepeer.status import dumps
 
 
 def parse_request(header):

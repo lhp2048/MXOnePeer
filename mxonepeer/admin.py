@@ -1,8 +1,8 @@
 import asyncio
 from urllib.parse import parse_qs
 
-from mxgrokbot.keys import mask_auth_key, read_auth_key, write_auth_key
-from mxgrokbot.mcp import handle as handle_mcp
+from mxonepeer.keys import mask_auth_key, read_auth_key, write_auth_key
+from mxonepeer.mcp import handle as handle_mcp
 
 HEADER_LIMIT = 8192
 BODY_LIMIT = 4096
@@ -55,7 +55,7 @@ def page(board):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MXGrokBotControl</title>
+<title>MXOnePeer</title>
 <style>
 :root { color-scheme: light; }
 body { margin: 0; min-height: 100vh; background: #f3efe6; color: #1c1915; font-family: "Avenir Next", "Segoe UI", sans-serif; }
@@ -92,7 +92,7 @@ footer { margin-top: 1.1rem; color: #625c53; font-size: 0.86rem; }
 <main class="shell">
 <header>
 <p class="mark">MX</p>
-<div><h1>MXGrokBotControl</h1><p class="sub">本机登录控制</p></div>
+<div><h1>MXOnePeer</h1><p class="sub">本机登录控制</p></div>
 <span class="pill %s">%s</span>
 </header>
 <section class="facts">
