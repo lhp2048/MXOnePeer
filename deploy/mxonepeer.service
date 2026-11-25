@@ -10,7 +10,7 @@ WorkingDirectory=/var/lib/mxonepeer
 Environment=PYTHONPATH=/opt/mxonepeer
 Environment=TS_RS_EXPERIMENT=this_is_unstable_software
 EnvironmentFile=/etc/mxonepeer.env
-ExecStart=/opt/mxonepeer/venv/bin/python -m mxonepeer --hostname mxonepeer --state-dir /var/lib/mxonepeer --port 8787
+ExecStart=/opt/mxonepeer/venv/bin/python -m mxonepeer --hostname mxonepeer --state-dir /var/lib/mxonepeer --port 18020
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

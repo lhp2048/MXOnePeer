@@ -22,7 +22,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="mxonepeer")
     parser.add_argument("--hostname", default="mxonepeer")
     parser.add_argument("--state-dir", default="/var/lib/mxonepeer")
-    parser.add_argument("--port", type=int, default=8787)
+    parser.add_argument("--port", type=int, default=18020)
     parser.add_argument("--admin-host", default="127.0.0.1")
     parser.add_argument("--admin-port", type=int, default=8788)
     args = parser.parse_args(argv)

@@ -23,5 +23,5 @@ Mac 会把程序装进 `~/Library/Application Support/mxonepeer`，并用登录�
 在另一台已登录同一账号的设备上检查：
 
 ```
-curl http://mxonepeer:8787/status
+curl http://mxonepeer:18020/status
 ```

@@ -14,7 +14,7 @@
 - Embed Tailscale with `tailscale.connect(state_file, auth_key, hostname=...)`. Userspace only. No TUN and no root for the service process.
 - Login is an auth key starting with `tskey-auth-`, or Tailscale account login from the local admin page.
 - State file is `/var/lib/mxonepeer/node-keys.json`. Directory mode is `0750`.
-- Listen with `tcp_listen` on `ipv4_addr()` and `ipv6_addr()`, port `8787`. Do not bind a LAN address.
+- Listen with `tcp_listen` on `ipv4_addr()` and `ipv6_addr()`, port `18020`. Do not bind a LAN address.
 - `GET /status` returns the JSON document in the spec. Other paths are `404`. Other methods are `405` with `Allow: GET`. One request per connection.
 - Pin `tailscale-py==0.7.1`. The unit sets `TS_RS_EXPERIMENT=this_is_unstable_software`.
 - Never write an auth key into the repo, the unit, or `install.sh`.
@@ -63,7 +63,7 @@ Expected: exit 0.
 
 - [ ] **Step 2: Confirm the service points at the venv interpreter and the env file**
 
-`deploy/mxonepeer.service` uses `/opt/mxonepeer/venv/bin/python`, `EnvironmentFile=/etc/mxonepeer.env`, and `--port 8787`.
+`deploy/mxonepeer.service` uses `/opt/mxonepeer/venv/bin/python`, `EnvironmentFile=/etc/mxonepeer.env`, and `--port 18020`.
 
 ### Task 3: Manual check on the target machine
 
@@ -83,7 +83,7 @@ journalctl -u mxonepeer
 From another device on the same account:
 
 ```bash
-curl http://mxonepeer:8787/status
+curl http://mxonepeer:18020/status
 ```
 
-Expected: HTTP 200, `"online": true`, and a `tailscaleIPs` value starting with `100.`. `ip addr` on the machine shows no Tailscale interface. Connections to `127.0.0.1:8787` and to the LAN address on port 8787 fail.
+Expected: HTTP 200, `"online": true`, and a `tailscaleIPs` value starting with `100.`. `ip addr` on the machine shows no Tailscale interface. Connections to `127.0.0.1:18020` and to the LAN address on port 18020 fail.

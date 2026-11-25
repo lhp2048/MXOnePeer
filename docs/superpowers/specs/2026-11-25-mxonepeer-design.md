@@ -16,7 +16,7 @@ MXOnePeer 是一个 Python 程序，可以装在 Debian 13（x86_64，系统 Pyt
 - 用户态 Tailscale。不创建系统网卡，不需要 root。
 - 用 auth key 或本机页面上的 Tailscale 账号登录。auth key 以 `tskey-auth-` 开头。
 - 登录后的节点密钥记在 `/var/lib/mxonepeer/node-keys.json`。重启后仍是同一个节点。
-- 在该节点的 Tailscale IPv4 和 IPv6 的 `8787` 端口提供 `GET /status`。
+- 在该节点的 Tailscale IPv4 和 IPv6 的 `18020` 端口提供 `GET /status`。
 
 不做这些：
 
@@ -36,7 +36,7 @@ MXOnePeer 是一个 Python 程序，可以装在 Debian 13（x86_64，系统 Pyt
 - `auth_key`：环境变量 `TS_AUTHKEY`。
 - `hostname`：启动参数 `--hostname`，默认 `mxonepeer`。
 
-端口是 `--port`，默认 `8787`。状态目录是 `--state-dir`，默认 `/var/lib/mxonepeer`。
+端口是 `--port`，默认 `18020`。状态目录是 `--state-dir`，默认 `/var/lib/mxonepeer`。
 
 不读其他 Tailscale 环境变量。进程启动时清掉 `TS_AUTH_KEY`、`TS_CLIENT_SECRET`、`TS_CLIENT_ID`、`TS_ID_TOKEN`、`TS_AUDIENCE`、`TS_CONTROL_URL`、`TS_HOSTNAME`。`TS_AUTHKEY` 先读入内存再从环境里清掉。日志里出现密钥时替换成 `tskey-auth-***`。
 
@@ -118,7 +118,7 @@ systemd 使用 `Restart=on-failure`。正常停止不会被立刻拉起。
 - `Environment=PYTHONPATH=/opt/mxonepeer`
 - `Environment=TS_RS_EXPERIMENT=this_is_unstable_software`
 - `EnvironmentFile=/etc/mxonepeer.env`
-- `ExecStart=/opt/mxonepeer/venv/bin/python -m mxonepeer --hostname mxonepeer --state-dir /var/lib/mxonepeer --port 8787`
+- `ExecStart=/opt/mxonepeer/venv/bin/python -m mxonepeer --hostname mxonepeer --state-dir /var/lib/mxonepeer --port 18020`
 - `After=network-online.target`，`Wants=network-online.target`
 - `Restart=on-failure`，`RestartSec=5`
 - `NoNewPrivileges=true`
@@ -185,8 +185,8 @@ MXOnePeer/
 
 1. `/etc/mxonepeer.env` 里写好 auth key，服务处于运行。
 2. Tailscale 管理页或其他已登录设备的 `tailscale status` 里能看到这个节点。
-3. 在另一台已加入同一账号的设备上执行 `curl http://mxonepeer:8787/status`。返回 `200`，`online` 为 true，`tailscaleIPs` 里有 `100.` 开头的地址。MagicDNS 不可用时，改用 Tailscale IP 和端口 `8787`。
-4. 目标机器的系统网卡上没有 Tailscale 接口。对 `127.0.0.1:8787` 和局域网地址的 `8787` 连接失败。
+3. 在另一台已加入同一账号的设备上执行 `curl http://mxonepeer:18020/status`。返回 `200`，`online` 为 true，`tailscaleIPs` 里有 `100.` 开头的地址。MagicDNS 不可用时，改用 Tailscale IP 和端口 `18020`。
+4. 目标机器的系统网卡上没有 Tailscale 接口。对 `127.0.0.1:18020` 和局域网地址的 `18020` 连接失败。
 
 ## 完成标准
 
