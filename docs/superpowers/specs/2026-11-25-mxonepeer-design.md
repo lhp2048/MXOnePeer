@@ -2,7 +2,7 @@
 
 日期：2026-11-25
 
-MXOnePeer 是一个 Python 程序，可以装在 Debian 13（x86_64，系统 Python 3.13）或 Apple 芯片的 Mac（Python 3.12 或更新）上。程序用 `tailscale-py` 0.7.1 把 Tailscale 嵌进本进程。操作者把 Tailscale 后台生成的 auth key 放在这台机器上，进程用它登录。同一账号下的其他设备能看到这个节点，并能访问本进程在 Tailscale 地址上提供的状态接口。
+仓库有两套程序。`python/` 是原来的 Python 程序，可以装在 Debian 13（x86_64，系统 Python 3.13）、Apple 芯片的 Mac（Python 3.12 或更新），或 64 位 Windows（Python 3.12 或更新）上。它用 `tailscale-py` 0.7.1 把 Tailscale 嵌进本进程。`go/` 用官方 `tailscale.com/tsnet`，同样的页面、MCP 和端口，另外覆盖 Intel Mac。Go 程序的节点状态由 tsnet 写在状态目录里，不使用 `node-keys.json`。两套程序不共用同一个节点身份。操作者把 Tailscale 后台生成的 auth key 放在这台机器上，进程用它登录。同一账号下的其他设备能看到这个节点，并能访问本进程在 Tailscale 地址上提供的状态接口。
 
 这一版只证明登录和连通。远程控制以后再加。
 
@@ -125,32 +125,32 @@ systemd 使用 `Restart=on-failure`。正常停止不会被立刻拉起。
 
 在 Apple 芯片的 Mac 上，由当前用户执行 `deploy/install-macos.sh`，不使用 root。脚本要求 Python 至少 3.12。程序和虚拟环境放在 `~/Library/Application Support/mxonepeer`，状态文件也在这个目录。`~/Library/LaunchAgents/com.mxonepeer.plist` 在登录后启动它，异常退出后重新拉起。可选的 auth key 写在同目录的 `env` 文件，权限 `0600`，格式与 Debian 的环境文件相同。Intel Mac 没有预编译 wheel，脚本直接退出。
 
+在 64 位 Windows 上，由当前用户执行 `deploy/install-windows.ps1`，不使用提升后的管理员身份。脚本要求 64 位 Python 至少 3.12。程序、虚拟环境和状态文件放在 `%LOCALAPPDATA%\mxonepeer`。计划任务 `MXOnePeer` 在登录后启动它，异常退出后重新拉起。可选的 auth key 写在同目录的 `env` 文件。ARM 版 Windows 没有预编译 wheel，脚本直接退出。
+
 密钥不写进仓库，也不写进安装脚本。
 
 ## 代码布局
 
 ```
 MXOnePeer/
-  requirements.txt
-  mxonepeer/__init__.py
-  mxonepeer/__main__.py
-  mxonepeer/main.py
-  mxonepeer/runtime.py
-  mxonepeer/admin.py
-  mxonepeer/mcp.py
-  mxonepeer/hostname.py
-  mxonepeer/keys.py
-  mxonepeer/status.py
-  mxonepeer/httpio.py
-  mxonepeer/node.py
-  tests/test_status.py
-  tests/test_httpio.py
-  tests/test_admin.py
-  tests/test_main.py
-  deploy/mxonepeer.service
-  deploy/install.sh
-  deploy/install-macos.sh
   README.md
+  python/
+    requirements.txt
+    mxonepeer/
+    tests/
+    deploy/install.sh
+    deploy/install-macos.sh
+    deploy/install-windows.ps1
+    deploy/mxonepeer.service
+  go/
+    cmd/mxonepeer/
+    internal/
+    deploy/build.sh
+    deploy/install.sh
+    deploy/install-macos.sh
+    deploy/install-windows.ps1
+    deploy/mxonepeer.service
+    dist/
 ```
 
 职责：
