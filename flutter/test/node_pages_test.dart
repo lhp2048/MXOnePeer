@@ -51,4 +51,31 @@ void main() {
 
     expect(find.text('peer'), findsOneWidget);
   });
+
+  testWidgets('self node shows hostname and 本机 as separate texts', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: NodeListPage(
+        nodes: [
+          TailNode(
+            hostname: 'verylonghostname-that-should-ellipsize',
+            dnsName: 'mac.tailnet.ts.net',
+            tailscaleIPs: const ['100.64.0.1'],
+            online: true,
+            self: true,
+          ),
+        ],
+        onOpen: (_) {},
+      ),
+    ));
+
+    expect(
+      find.text('verylonghostname-that-should-ellipsize'),
+      findsOneWidget,
+    );
+    expect(find.text('本机'), findsOneWidget);
+    expect(
+      find.text('verylonghostname-that-should-ellipsize本机'),
+      findsNothing,
+    );
+  });
 }

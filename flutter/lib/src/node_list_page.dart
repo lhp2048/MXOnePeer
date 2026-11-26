@@ -22,8 +22,17 @@ class NodeListPage extends StatelessWidget {
           return ListTile(
             title: Row(
               children: [
-                Text(node.hostname),
-                if (node.self) const Text('本机'),
+                Flexible(
+                  child: Text(
+                    node.hostname,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                if (node.self) ...[
+                  const SizedBox(width: 8),
+                  const Text('本机'),
+                ],
               ],
             ),
             subtitle: Column(
