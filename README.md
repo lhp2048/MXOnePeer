@@ -48,3 +48,14 @@ Mac 安装脚本同时接受 Apple 芯片和 Intel。Intel Mac 使用 `go/dist/m
 ```
 curl http://mxonepeer:18020/status
 ```
+
+## Flutter 客户端
+
+Mac 客户端自己登录 Tailscale，并列出网络里的节点。先执行 `./go/deploy/build.sh`，再执行 `cd flutter && flutter run -d macos`。
+
+```
+./go/deploy/build.sh
+cd flutter && flutter run -d macos
+```
+
+界面打开时启动 `mxonepeer-client`，本机接口是 `http://127.0.0.1:19020/`。登录状态在 `~/Library/Application Support/mxonepeer-client`。
