@@ -9,4 +9,11 @@ void main() {
     expect(chooseEngine(null, null), EngineChoice.spawn);
     expect(chooseEngine(200, 'other'), EngineChoice.busy);
   });
+
+  test('spawn wait stays blocked when health never becomes this client', () {
+    expect(spawnWaitBlockMessage(EngineChoice.reuse, false), isNull);
+    expect(spawnWaitBlockMessage(EngineChoice.busy, false), '端口被占用');
+    expect(spawnWaitBlockMessage(EngineChoice.spawn, true), '端口被占用');
+    expect(spawnWaitBlockMessage(EngineChoice.spawn, false), '引擎没有启动');
+  });
 }

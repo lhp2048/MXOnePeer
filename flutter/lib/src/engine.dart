@@ -23,6 +23,18 @@ EngineChoice chooseEngine(int? statusCode, String? name) {
   return EngineChoice.busy;
 }
 
+/// After spawn + wait: null means become ready. Otherwise a blocking message.
+String? spawnWaitBlockMessage(EngineChoice afterWait, bool ownedExited) {
+  switch (afterWait) {
+    case EngineChoice.reuse:
+      return null;
+    case EngineChoice.busy:
+      return '端口被占用';
+    case EngineChoice.spawn:
+      return ownedExited ? '端口被占用' : '引擎没有启动';
+  }
+}
+
 const fallbackComputerName = 'mxonepeer-mac';
 
 String clientStateDir() {

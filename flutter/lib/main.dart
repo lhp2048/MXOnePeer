@@ -52,6 +52,7 @@ class EngineHome extends ConsumerStatefulWidget {
 class _EngineHomeState extends ConsumerState<EngineHome> {
   AppLifecycleListener? _lifecycle;
   Process? _owned;
+  bool _ownedExited = false;
   Timer? _timer;
   ClientSession _session = const ClientSession(backendState: '', online: false);
   List<TailNode> _nodes = const [];
@@ -111,10 +112,13 @@ class _EngineHomeState extends ConsumerState<EngineHome> {
         if (!mounted) {
           return;
         }
-        if (after == EngineChoice.busy) {
-          _owned?.kill();
+        final block = spawnWaitBlockMessage(after, _ownedExited);
+        if (block != null) {
+          if (!_ownedExited) {
+            _owned?.kill();
+          }
           _owned = null;
-          setState(() => _blockMessage = '端口被占用');
+          setState(() => _blockMessage = block);
           return;
         }
         break;
@@ -148,6 +152,7 @@ class _EngineHomeState extends ConsumerState<EngineHome> {
         hostname: hostname,
       );
       _owned = process;
+      _ownedExited = false;
       if (_exitRequested) {
         _owned = null;
         process.kill();
@@ -155,7 +160,11 @@ class _EngineHomeState extends ConsumerState<EngineHome> {
       }
       process.stdout.listen((_) {}, onError: (_) {});
       process.stderr.listen((_) {}, onError: (_) {});
-      unawaited(process.exitCode.then((_) {}, onError: (_) {}));
+      unawaited(process.exitCode.then((_) {
+        _ownedExited = true;
+      }, onError: (_) {
+        _ownedExited = true;
+      }));
       return true;
     } catch (_) {
       return false;
