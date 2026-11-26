@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -37,5 +38,21 @@ func TestAuthKey(t *testing.T) {
 	}
 	if err := WriteAuthKey(dir, "tskey-api-nope"); err == nil {
 		t.Fatal("expected rejection")
+	}
+}
+
+func TestSanitizeHostname(t *testing.T) {
+	if got := SanitizeHostname("  MacBook Pro ", "mxonepeer-mac"); got != "macbook-pro" {
+		t.Fatalf("got %q", got)
+	}
+	if got := SanitizeHostname("Muxin's Mac", "mxonepeer-mac"); got != "muxin-s-mac" {
+		t.Fatalf("got %q", got)
+	}
+	if got := SanitizeHostname("---", "mxonepeer-mac"); got != "mxonepeer-mac" {
+		t.Fatalf("got %q", got)
+	}
+	long := strings.Repeat("a", 70)
+	if got := SanitizeHostname(long, "mxonepeer-mac"); got != strings.Repeat("a", 63) {
+		t.Fatalf("len %d", len(got))
 	}
 }

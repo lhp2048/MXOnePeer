@@ -24,6 +24,30 @@ func NormalizeHostname(value string) (string, error) {
 	return text, nil
 }
 
+func SanitizeHostname(value, fallback string) string {
+	var b strings.Builder
+	hyphen := false
+	for _, r := range strings.ToLower(strings.TrimSpace(value)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			hyphen = false
+			continue
+		}
+		if !hyphen && b.Len() > 0 {
+			b.WriteByte('-')
+			hyphen = true
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if len(out) > 63 {
+		out = strings.TrimRight(out[:63], "-")
+	}
+	if _, err := NormalizeHostname(out); err != nil {
+		return fallback
+	}
+	return out
+}
+
 func ReadHostname(dir string) string {
 	text, err := os.ReadFile(filepath.Join(dir, "hostname"))
 	if err != nil {
