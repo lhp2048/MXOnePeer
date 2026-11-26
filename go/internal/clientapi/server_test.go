@@ -28,6 +28,7 @@ func (f *fakeSource) Snapshot() Snapshot {
 		Nodes: []Node{
 			{Hostname: "mac", TailscaleIPs: []string{"100.64.0.1"}, Online: true, Self: true},
 			{Hostname: "peer", TailscaleIPs: []string{"100.64.0.2"}, Online: false},
+			{Hostname: "down", TailscaleIPs: []string{"100.64.0.3"}, Online: false},
 		},
 		SelfStatus: statusdoc.Document{
 			Hostname: "mac", DNSName: "mac.tailnet.ts.net", TailscaleIPs: []string{"100.64.0.1"},
@@ -90,6 +91,16 @@ func TestClientAPI(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/node-status?ip=100.64.0.1", nil))
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"hostname":"mac"`) {
 		t.Fatalf("self %d %s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/node-status?ip=100.64.0.2", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "peer") {
+		t.Fatalf("peer %d %s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/node-status?ip=100.64.0.3", nil))
+	if rec.Code != 502 || !strings.Contains(rec.Body.String(), "读不到状态") {
+		t.Fatalf("peer fail %d %s", rec.Code, rec.Body.String())
 	}
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/nope", nil))
