@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/lhp2048/MXOnePeer/go/internal/admin"
 	"github.com/lhp2048/MXOnePeer/go/internal/clientapi"
+	"github.com/lhp2048/MXOnePeer/go/internal/clientnet"
 	"github.com/lhp2048/MXOnePeer/go/internal/store"
 )
 
@@ -31,5 +35,17 @@ func main() {
 	if store.ReadHostname(*stateDir) == "" {
 		_, _ = store.WriteHostname(*stateDir, store.SanitizeHostname(*hostname, "mxonepeer-mac"))
 	}
-	fmt.Fprintf(os.Stderr, "client api http://%s:%d/ port %d\n", *apiHost, *apiPort, *port)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	err := clientnet.Run(ctx, clientnet.Options{
+		StateDir: *stateDir,
+		Hostname: store.ReadHostname(*stateDir),
+		APIHost:  *apiHost,
+		APIPort:  *apiPort,
+		Port:     *port,
+	})
+	if err != nil && ctx.Err() == nil {
+		fmt.Fprintln(os.Stderr, clientapi.Redact(err.Error()))
+		os.Exit(1)
+	}
 }
