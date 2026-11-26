@@ -1,122 +1,307 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
-void main() {
-  runApp(const MyApp());
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'src/engine.dart';
+import 'src/local_api.dart';
+import 'src/login_page.dart';
+import 'src/node.dart';
+import 'src/node_detail_page.dart';
+import 'src/node_list_page.dart';
+import 'src/session.dart';
+
+final localApiProvider = Provider<LocalApi>((ref) => LocalApi());
+
+ThemeData mxonepeerTheme() {
+  return ThemeData(
+    colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F6E6E)),
+    useMaterial3: true,
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+void main() {
+  runApp(const ProviderScope(child: MxonepeerApp()));
+}
 
-  // This widget is the root of your application.
+class MxonepeerApp extends StatelessWidget {
+  const MxonepeerApp({super.key, this.home});
+
+  /// When set, the engine is not started. Widget tests use this.
+  final Widget? home;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'MXOnePeer',
+      theme: mxonepeerTheme(),
+      home: home ?? const EngineHome(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class EngineHome extends ConsumerStatefulWidget {
+  const EngineHome({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  ConsumerState<EngineHome> createState() => _EngineHomeState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _EngineHomeState extends ConsumerState<EngineHome> {
+  AppLifecycleListener? _lifecycle;
+  Process? _owned;
+  Timer? _timer;
+  ClientSession _session = const ClientSession(backendState: '', online: false);
+  List<TailNode> _nodes = const [];
+  String _submitError = '';
+  String? _blockMessage;
+  bool _ready = false;
+  bool _refreshing = false;
+  bool _refreshAgain = false;
+  bool _exitRequested = false;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onExitRequested: _onExitRequested);
+    unawaited(_boot());
+  }
+
+  Future<AppExitResponse> _onExitRequested() async {
+    _exitRequested = true;
+    final owned = _owned;
+    _owned = null;
+    if (owned != null) {
+      owned.kill();
+    }
+    return AppExitResponse.exit;
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _lifecycle?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _boot() async {
+    final api = ref.read(localApiProvider);
+    final health = await api.checkHealth();
+    if (!mounted) {
+      return;
+    }
+    switch (chooseEngine(health.statusCode, health.name)) {
+      case EngineChoice.busy:
+        setState(() => _blockMessage = '端口被占用');
+        return;
+      case EngineChoice.reuse:
+        break;
+      case EngineChoice.spawn:
+        final started = await _spawnOwnedEngine();
+        if (!mounted) {
+          return;
+        }
+        if (!started) {
+          setState(() => _blockMessage = '引擎没有启动');
+          return;
+        }
+        final after = await _waitForOwnEngine();
+        if (!mounted) {
+          return;
+        }
+        if (after == EngineChoice.busy) {
+          _owned?.kill();
+          _owned = null;
+          setState(() => _blockMessage = '端口被占用');
+          return;
+        }
+        break;
+    }
+    setState(() => _ready = true);
+    await _refresh();
+    if (!mounted) {
+      return;
+    }
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      unawaited(_refresh());
     });
+  }
+
+  Future<bool> _spawnOwnedEngine() async {
+    String machine;
+    try {
+      machine = await readUnameMachine();
+    } catch (_) {
+      return false;
+    }
+    final binary = await findEngineBinary(engineArch(machine));
+    if (binary == null) {
+      return false;
+    }
+    final hostname = await readComputerName();
+    try {
+      final process = await startEngineProcess(
+        binary: binary,
+        stateDir: clientStateDir(),
+        hostname: hostname,
+      );
+      _owned = process;
+      if (_exitRequested) {
+        _owned = null;
+        process.kill();
+        return false;
+      }
+      process.stdout.listen((_) {}, onError: (_) {});
+      process.stderr.listen((_) {}, onError: (_) {});
+      unawaited(process.exitCode.then((_) {}, onError: (_) {}));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<EngineChoice> _waitForOwnEngine() async {
+    final api = ref.read(localApiProvider);
+    var latest = EngineChoice.spawn;
+    for (var i = 0; i < 20; i++) {
+      if (!mounted) {
+        return latest;
+      }
+      final health = await api.checkHealth();
+      latest = chooseEngine(health.statusCode, health.name);
+      if (latest != EngineChoice.spawn) {
+        return latest;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    return latest;
+  }
+
+  Future<void> _refresh() async {
+    if (!_ready || !mounted) {
+      return;
+    }
+    if (_refreshing) {
+      _refreshAgain = true;
+      return;
+    }
+    _refreshing = true;
+    try {
+      await _refreshOnce();
+    } finally {
+      _refreshing = false;
+      if (_refreshAgain && mounted) {
+        _refreshAgain = false;
+        await _refresh();
+      }
+    }
+  }
+
+  Future<void> _refreshOnce() async {
+    final api = ref.read(localApiProvider);
+    final ClientSession session;
+    try {
+      session = await api.getSession();
+    } catch (_) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    List<TailNode>? nodes;
+    if (session.online) {
+      try {
+        nodes = await api.getNodes();
+      } catch (_) {}
+      if (!mounted) {
+        return;
+      }
+    }
+    final wasOnline = _session.online;
+    setState(() {
+      _session = session;
+      if (!session.online) {
+        _nodes = const [];
+      } else if (nodes != null) {
+        _nodes = nodes;
+      }
+    });
+    if (wasOnline && !session.online) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
+  Future<void> _submit(String key) async {
+    try {
+      await ref.read(localApiProvider).saveAuthKey(key);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submitError = '');
+      await _refresh();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submitError = _errorText(error));
+    }
+  }
+
+  Future<void> _login() async {
+    try {
+      await ref.read(localApiProvider).startLogin();
+      await _refresh();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submitError = _errorText(error));
+    }
+  }
+
+  void _open(TailNode node) {
+    final ip = node.tailscaleIPs.isEmpty ? '' : node.tailscaleIPs.first;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NodeDetailPage(
+          ip: ip,
+          loader: (address) {
+            if (address.isEmpty) {
+              return Future<NodeStatus>.error(LocalApiException('读不到状态'));
+            }
+            return ref.read(localApiProvider).nodeStatus(address);
+          },
+        ),
+      ),
+    );
+  }
+
+  String _errorText(Object error) {
+    if (error is LocalApiException) {
+      return error.message;
+    }
+    return '$error';
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
+    if (_blockMessage != null) {
+      return Scaffold(body: Center(child: Text(_blockMessage!)));
+    }
+    if (!_ready) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final error = _submitError.isNotEmpty ? _submitError : _session.loginError;
+    if (!_session.online) {
+      return LoginPage(
+        session: _session,
+        error: error,
+        onSubmit: _submit,
+        onLogin: _login,
+      );
+    }
+    return NodeListPage(nodes: _nodes, onOpen: _open);
   }
 }
