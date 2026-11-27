@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/lhp2048/MXOnePeer/go/internal/clientapi"
+	"github.com/lhp2048/MXOnePeer/go/internal/portproxy"
 	"github.com/lhp2048/MXOnePeer/go/internal/statusdoc"
 	"github.com/lhp2048/MXOnePeer/go/internal/store"
 	"github.com/lhp2048/MXOnePeer/go/internal/upgrade"
@@ -37,6 +38,7 @@ type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 type Live struct {
 	dir     string
+	sites   *portproxy.Local
 	mu      sync.Mutex
 	snap    clientapi.Snapshot
 	login   bool
@@ -49,6 +51,7 @@ func Run(ctx context.Context, opts Options) error {
 		return errors.New("state dir is required")
 	}
 	live := &Live{dir: opts.StateDir, restart: make(chan struct{}, 1)}
+	live.sites = portproxy.NewLocal(live.currentDial)
 	listener, err := net.Listen("tcp", net.JoinHostPort(opts.APIHost, strconv.Itoa(opts.APIPort)))
 	if err != nil {
 		return err
@@ -112,6 +115,13 @@ func (l *Live) once(ctx context.Context, opts Options) error {
 	statusSrv := &http.Server{Handler: tailStatus(client), ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = statusSrv.Serve(statusLn) }()
 	defer statusSrv.Close()
+	proxyLn, err := server.Listen("tcp", fmt.Sprintf(":%d", portproxy.ProxyPort))
+	if err != nil {
+		return err
+	}
+	proxySrv := &http.Server{Handler: portproxy.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	go func() { _ = proxySrv.Serve(proxyLn) }()
+	defer proxySrv.Close()
 	l.setDial(server.Dial)
 	defer l.setDial(nil)
 	ticker := time.NewTicker(2 * time.Second)
@@ -162,6 +172,35 @@ func (l *Live) poke() {
 	case l.restart <- struct{}{}:
 	default:
 	}
+}
+
+func (l *Live) currentDial() portproxy.Dial {
+	l.mu.Lock()
+	d := l.dial
+	l.mu.Unlock()
+	if d == nil {
+		return nil
+	}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return d(ctx, network, addr)
+	}
+}
+
+func (l *Live) OpenBrowse(ip string, port int, path string) (string, error) {
+	if !clientapi.Allowed(ip, l.Snapshot().Nodes) {
+		return "", clientapi.ErrNodeAddress
+	}
+	if err := portproxy.CheckPort(port); err != nil {
+		return "", err
+	}
+	if l.currentDial() == nil {
+		return "", clientapi.ErrBrowseOffline
+	}
+	addr, err := l.sites.Open(ip, port)
+	if err != nil {
+		return "", clientapi.ErrBrowseOffline
+	}
+	return portproxy.PageURL(addr, path)
 }
 
 func (l *Live) setDial(dial dialFunc) {

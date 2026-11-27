@@ -17,6 +17,7 @@ class NodeDetailPage extends StatefulWidget {
     required this.loader,
     this.pickUpgrade,
     this.sendUpgrade,
+    this.openBrowser,
   });
 
   final String ip;
@@ -24,17 +25,28 @@ class NodeDetailPage extends StatefulWidget {
   final Future<UpgradePick?> Function()? pickUpgrade;
   final Future<void> Function(String runtime, String filename, List<int> bytes)?
       sendUpgrade;
+  final Future<void> Function(int port, String path)? openBrowser;
 
   @override
   State<NodeDetailPage> createState() => _NodeDetailPageState();
 }
 
 class _NodeDetailPageState extends State<NodeDetailPage> {
+  final TextEditingController _port = TextEditingController();
+  final TextEditingController _path = TextEditingController();
   NodeStatus? _status;
   bool _failed = false;
   bool _sending = false;
   UpgradePick? _pick;
   String? _message;
+  String _browserError = '';
+
+  @override
+  void dispose() {
+    _port.dispose();
+    _path.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -109,6 +121,27 @@ class _NodeDetailPageState extends State<NodeDetailPage> {
     }
   }
 
+  Future<void> _openBrowser() async {
+    final opener = widget.openBrowser;
+    if (opener == null) {
+      return;
+    }
+    final port = int.tryParse(_port.text.trim());
+    if (port == null) {
+      setState(() => _browserError = '端口不正确');
+      return;
+    }
+    setState(() => _browserError = '');
+    try {
+      await opener(port, _path.text);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _browserError = '$error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = _status;
@@ -147,6 +180,24 @@ class _NodeDetailPageState extends State<NodeDetailPage> {
             onPressed: _load,
             child: const Text('刷新'),
           ),
+          if (widget.openBrowser != null) ...[
+            const SizedBox(height: 24),
+            TextField(
+              controller: _port,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '端口'),
+            ),
+            TextField(
+              controller: _path,
+              decoration: const InputDecoration(labelText: '路径'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _openBrowser,
+              child: const Text('打开'),
+            ),
+            if (_browserError.isNotEmpty) Text(_browserError),
+          ],
         ],
       ),
     );

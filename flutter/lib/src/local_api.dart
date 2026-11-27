@@ -88,6 +88,22 @@ class LocalApi {
     }
   }
 
+  Future<String> openBrowse(String ip, int port, String path) async {
+    final response = await _send(
+      'POST',
+      '/browse',
+      body: jsonEncode({'ip': ip, 'port': port, 'path': path}),
+    );
+    if (response.statusCode != 200) {
+      throw LocalApiException(response.body.trim());
+    }
+    final url = _object(response.body)['url'];
+    if (url is! String || url.isEmpty) {
+      throw LocalApiException('打不开这个端口');
+    }
+    return url;
+  }
+
   Future<NodeStatus> nodeStatus(String ip) async {
     final response = await _send(
       'GET',

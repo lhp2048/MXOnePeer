@@ -32,6 +32,12 @@ type Snapshot struct {
 	SelfStatus statusdoc.Document
 }
 
+var ErrBrowseOffline = errors.New("引擎没有启动")
+
+type Browser interface {
+	OpenBrowse(ip string, port int, path string) (string, error)
+}
+
 type Source interface {
 	Snapshot() Snapshot
 	SaveAuthKey(key string) error
@@ -101,6 +107,12 @@ func Handler(source Source) http.Handler {
 				return
 			}
 			serveUpgrade(w, r, source)
+		case "/browse":
+			if r.Method != http.MethodPost {
+				methodNotAllowed(w, http.MethodPost)
+				return
+			}
+			serveBrowse(w, r, source)
 		default:
 			http.NotFound(w, r)
 		}
@@ -178,6 +190,34 @@ func serveUpgrade(w http.ResponseWriter, r *http.Request, source Source) {
 		return
 	}
 	writeJSON(w, http.StatusBadGateway, map[string]string{"error": "传不上去"})
+}
+
+func serveBrowse(w http.ResponseWriter, r *http.Request, source Source) {
+	browser, ok := source.(Browser)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	var req struct {
+		IP   string `json:"ip"`
+		Port int    `json:"port"`
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(body, &req) != nil {
+		http.Error(w, "端口不正确\n", http.StatusBadRequest)
+		return
+	}
+	page, err := browser.OpenBrowse(req.IP, req.Port, req.Path)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, ErrBrowseOffline) {
+			status = http.StatusBadGateway
+		}
+		http.Error(w, err.Error()+"\n", status)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": page})
 }
 
 func Allowed(ip string, nodes []Node) bool {

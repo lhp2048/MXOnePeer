@@ -163,3 +163,30 @@ func TestUpgradeAPI(t *testing.T) {
 		t.Fatalf("name %d called %v %s", rec.Code, source.called, rec.Body.String())
 	}
 }
+
+type browseFake struct {
+	fakeSource
+}
+
+func (b *browseFake) OpenBrowse(ip string, port int, path string) (string, error) {
+	if ip != "100.64.0.2" || port != 8888 || path != "main" {
+		return "", ErrNodeAddress
+	}
+	return "http://127.0.0.1:9/main", nil
+}
+
+func TestBrowse(t *testing.T) {
+	h := Handler(&browseFake{})
+	req := httptest.NewRequest(http.MethodPost, "/browse", strings.NewReader(`{"ip":"100.64.0.2","port":8888,"path":"main"}`))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "http://127.0.0.1:9/main") {
+		t.Fatalf("browse %d %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/browse", strings.NewReader(`{"ip":"10.0.0.1","port":8888,"path":"main"}`))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 400 || !strings.Contains(rec.Body.String(), "地址不在节点列表里") {
+		t.Fatalf("reject %d %s", rec.Code, rec.Body.String())
+	}
+}

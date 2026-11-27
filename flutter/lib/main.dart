@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/engine.dart';
 import 'src/local_api.dart';
 import 'src/login_page.dart';
+import 'src/node_browser_page.dart';
 import 'src/node.dart';
 import 'src/node_detail_page.dart';
 import 'src/node_list_page.dart';
@@ -298,6 +299,25 @@ class _EngineHomeState extends ConsumerState<EngineHome> {
               bytes,
             );
           },
+          openBrowser: (port, path) => _openBrowser(node.hostname, ip, port, path),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openBrowser(String hostname, String ip, int port, String path) async {
+    final page = await ref.read(localApiProvider).openBrowse(ip, port, path);
+    if (!mounted) {
+      return;
+    }
+    final shownPath = path.trim().isEmpty
+        ? ''
+        : (path.trim().startsWith('/') ? path.trim() : '/${path.trim()}');
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NodeBrowserPage(
+          title: '$hostname  $port$shownPath',
+          url: page,
         ),
       ),
     );

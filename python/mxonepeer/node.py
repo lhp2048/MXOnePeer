@@ -3,6 +3,7 @@ import os
 import sys
 
 from mxonepeer.httpio import _response, parse_request, response_for
+from mxonepeer.portproxy import PROXY_PORT, handle_proxy
 from mxonepeer.upgrade import EXIT_CODE, decide, runtime_id
 
 HEADER_LIMIT = 8192
@@ -26,8 +27,9 @@ async def serve_device(dev, port, stop, board=None):
         raise RuntimeError("tailscale connected without an address")
     listeners = []
     for address in addresses:
-        listeners.append(await dev.tcp_listen((address, port)))
-    tasks = [asyncio.create_task(_accept(dev, listener, stop)) for listener in listeners]
+        listeners.append((await dev.tcp_listen((address, port)), lambda stream: _handle(dev, stream)))
+        listeners.append((await dev.tcp_listen((address, PROXY_PORT)), handle_proxy))
+    tasks = [asyncio.create_task(_accept(listener, stop, handle)) for listener, handle in listeners]
     tasks.append(asyncio.create_task(_watch(dev, board, stop)))
     try:
         await stop.wait()
@@ -52,7 +54,7 @@ async def _watch(dev, board, stop):
         await asyncio.sleep(3)
 
 
-async def _accept(dev, listener, stop):
+async def _accept(listener, stop, handle):
     while not stop.is_set():
         accept_task = asyncio.ensure_future(listener.accept())
         stop_task = asyncio.ensure_future(stop.wait())
@@ -74,7 +76,7 @@ async def _accept(dev, listener, stop):
             print("accept: %s" % error, file=sys.stderr)
             await asyncio.sleep(1)
             continue
-        asyncio.create_task(_handle(dev, accept_task.result()))
+        asyncio.create_task(handle(accept_task.result()))
 
 
 async def _handle(dev, stream):

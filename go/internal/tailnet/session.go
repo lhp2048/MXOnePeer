@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lhp2048/MXOnePeer/go/internal/adminboard"
+	"github.com/lhp2048/MXOnePeer/go/internal/portproxy"
 	"github.com/lhp2048/MXOnePeer/go/internal/statusdoc"
 	"github.com/lhp2048/MXOnePeer/go/internal/upgrade"
 	"tailscale.com/client/local"
@@ -77,11 +78,19 @@ func Run(parent context.Context, cfg Config, board *adminboard.Board) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() { _ = httpServer.Serve(listener) }()
+	proxyLn, err := server.Listen("tcp", fmt.Sprintf(":%d", portproxy.ProxyPort))
+	if err != nil {
+		return err
+	}
+	proxyServer := &http.Server{Handler: portproxy.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	go func() { _ = proxyServer.Serve(proxyLn) }()
 	defer func() {
 		shutdown, stop := context.WithTimeout(context.Background(), 2*time.Second)
 		defer stop()
 		_ = httpServer.Shutdown(shutdown)
+		_ = proxyServer.Shutdown(shutdown)
 		_ = listener.Close()
+		_ = proxyLn.Close()
 	}()
 
 	announced := false
