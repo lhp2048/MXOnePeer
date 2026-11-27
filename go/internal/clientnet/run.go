@@ -1,6 +1,7 @@
 package clientnet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -199,6 +201,34 @@ func (l *Live) FetchStatus(ip string) (int, []byte) {
 		return http.StatusOK, parsed
 	}
 	return http.StatusBadGateway, nil
+}
+
+func (l *Live) Upload(ip, runtimeID, filename string, payload []byte) (int, []byte) {
+	l.mu.Lock()
+	nodes := append([]clientapi.Node(nil), l.snap.Nodes...)
+	dial := l.dial
+	l.mu.Unlock()
+	if err := clientapi.CheckUpgrade(ip, runtimeID, filename, nodes); err != nil {
+		buf := &bytes.Buffer{}
+		_ = json.NewEncoder(buf).Encode(map[string]string{"error": err.Error()})
+		return http.StatusBadRequest, buf.Bytes()
+	}
+	if dial == nil {
+		return http.StatusBadGateway, []byte("{\"error\":\"传不上去\"}\n")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	code, body, err := clientapi.PostUpgrade(ctx, dial, ip, runtimeID, filename, payload)
+	if err != nil {
+		return http.StatusBadGateway, []byte("{\"error\":\"传不上去\"}\n")
+	}
+	if code == http.StatusNoContent {
+		return http.StatusNoContent, nil
+	}
+	text := strings.TrimSpace(string(body))
+	buf := &bytes.Buffer{}
+	_ = json.NewEncoder(buf).Encode(map[string]string{"error": text})
+	return code, buf.Bytes()
 }
 
 func (l *Live) publish(ctx context.Context, client *local.Client, requested string) {

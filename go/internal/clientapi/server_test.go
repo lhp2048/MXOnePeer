@@ -1,6 +1,8 @@
 package clientapi
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -111,5 +113,53 @@ func TestClientAPI(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/health", nil))
 	if rec.Code != 405 {
 		t.Fatalf("405 %d", rec.Code)
+	}
+}
+
+type uploadFake struct {
+	fakeSource
+	called bool
+}
+
+func (u *uploadFake) Upload(ip, runtimeID, filename string, payload []byte) (int, []byte) {
+	u.called = true
+	if ip != "100.64.0.2" || runtimeID != "go/linux/amd64" || filename != "mxonepeer-linux-amd64" || string(payload) != "elf" {
+		return 400, []byte(`{"error":"文件名不正确"}`)
+	}
+	return 204, nil
+}
+
+func TestUpgradeAPI(t *testing.T) {
+	source := &uploadFake{}
+	h := Handler(source)
+	body := &bytes.Buffer{}
+	form := multipart.NewWriter(body)
+	_ = form.WriteField("ip", "100.64.0.2")
+	_ = form.WriteField("runtime", "go/linux/amd64")
+	part, _ := form.CreateFormFile("package", "mxonepeer-linux-amd64")
+	_, _ = part.Write([]byte("elf"))
+	_ = form.Close()
+	req := httptest.NewRequest(http.MethodPost, "/upgrade", body)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 204 || !source.called {
+		t.Fatalf("send %d %s", rec.Code, rec.Body.String())
+	}
+
+	source.called = false
+	body.Reset()
+	form = multipart.NewWriter(body)
+	_ = form.WriteField("ip", "100.64.0.2")
+	_ = form.WriteField("runtime", "go/linux/amd64")
+	part, _ = form.CreateFormFile("package", "mxonepeer-darwin-arm64")
+	_, _ = part.Write([]byte("elf"))
+	_ = form.Close()
+	req = httptest.NewRequest(http.MethodPost, "/upgrade", body)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 400 || source.called || !strings.Contains(rec.Body.String(), "文件名不正确") {
+		t.Fatalf("name %d called %v %s", rec.Code, source.called, rec.Body.String())
 	}
 }

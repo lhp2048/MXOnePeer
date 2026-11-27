@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	"github.com/lhp2048/MXOnePeer/go/internal/statusdoc"
+	"github.com/lhp2048/MXOnePeer/go/internal/upgrade"
 )
 
 var ErrAuthKey = errors.New("auth key 必须以 tskey-auth- 开头。")
+var ErrNodeAddress = errors.New("地址不在节点列表里")
 
 type Session struct {
 	BackendState      string   `json:"backendState"`
@@ -93,6 +95,12 @@ func Handler(source Source) http.Handler {
 				return
 			}
 			serveNodeStatus(w, r, source)
+		case "/upgrade":
+			if r.Method != http.MethodPost {
+				methodNotAllowed(w, http.MethodPost)
+				return
+			}
+			serveUpgrade(w, r, source)
 		default:
 			http.NotFound(w, r)
 		}
@@ -118,6 +126,58 @@ func serveNodeStatus(w http.ResponseWriter, r *http.Request, source Source) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+type Uploader interface {
+	Upload(ip, runtimeID, filename string, payload []byte) (int, []byte)
+}
+
+func serveUpgrade(w http.ResponseWriter, r *http.Request, source Source) {
+	uploader, ok := source.(Uploader)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, upgrade.MaxBytes)
+	if err := r.ParseMultipartForm(upgrade.MaxBytes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "文件名不正确"})
+		return
+	}
+	file, header, err := r.FormFile("package")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "文件名不正确"})
+		return
+	}
+	defer file.Close()
+	payload, err := io.ReadAll(file)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "包的内容不正确"})
+		return
+	}
+	filename := strings.ReplaceAll(header.Filename, "\\", "/")
+	if slash := strings.LastIndex(filename, "/"); slash >= 0 {
+		filename = filename[slash+1:]
+	}
+	if err = CheckUpgrade(r.FormValue("ip"), r.FormValue("runtime"), filename, source.Snapshot().Nodes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	code, body := uploader.Upload(r.FormValue("ip"), r.FormValue("runtime"), filename, payload)
+	if code == http.StatusNoContent {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if code == http.StatusBadRequest || code == http.StatusInternalServerError {
+		if jsonObject(body) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(code)
+			_, _ = w.Write(body)
+			return
+		}
+		writeJSON(w, code, map[string]string{"error": strings.TrimSpace(string(body))})
+		return
+	}
+	writeJSON(w, http.StatusBadGateway, map[string]string{"error": "传不上去"})
 }
 
 func Allowed(ip string, nodes []Node) bool {
