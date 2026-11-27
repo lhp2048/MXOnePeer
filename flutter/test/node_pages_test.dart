@@ -78,4 +78,69 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('wrong upgrade filename is rejected', (tester) async {
+    var sent = false;
+    await tester.pumpWidget(MaterialApp(
+      home: NodeDetailPage(
+        ip: '100.64.0.2',
+        loader: (_) async => const NodeStatus(
+          hostname: 'peer',
+          runtime: 'go/linux/amd64',
+        ),
+        pickUpgrade: () async => UpgradePick('mxonepeer-darwin-arm64', [1]),
+        sendUpgrade: (_, __, ___) async {
+          sent = true;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择文件'));
+    await tester.pumpAndSettle();
+    expect(find.text('文件名不正确'), findsOneWidget);
+    expect(sent, isFalse);
+  });
+
+  testWidgets('valid upgrade file can be sent', (tester) async {
+    String? sentName;
+    List<int>? sentBytes;
+    await tester.pumpWidget(MaterialApp(
+      home: NodeDetailPage(
+        ip: '100.64.0.2',
+        loader: (_) async => const NodeStatus(
+          hostname: 'peer',
+          runtime: 'go/linux/amd64',
+        ),
+        pickUpgrade: () async => UpgradePick('mxonepeer-linux-amd64', [7]),
+        sendUpgrade: (_, filename, bytes) async {
+          sentName = filename;
+          sentBytes = bytes;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择文件'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('发送'));
+    await tester.pumpAndSettle();
+    expect(sentName, 'mxonepeer-linux-amd64');
+    expect(sentBytes, [7]);
+    expect(find.text('节点正在重启'), findsOneWidget);
+  });
+
+  testWidgets('client runtime has no upgrade picker', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: NodeDetailPage(
+        ip: '100.64.0.2',
+        loader: (_) async => const NodeStatus(
+          hostname: 'peer',
+          runtime: 'client/darwin/arm64',
+        ),
+        pickUpgrade: () async => null,
+        sendUpgrade: (_, __, ___) async {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('选择文件'), findsNothing);
+  });
 }

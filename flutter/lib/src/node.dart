@@ -31,6 +31,7 @@ class NodeStatus {
     this.tailscaleIPs = const [],
     this.online = false,
     this.backendState = '',
+    this.runtime = '',
   });
 
   final String hostname;
@@ -38,6 +39,7 @@ class NodeStatus {
   final List<String> tailscaleIPs;
   final bool online;
   final String backendState;
+  final String runtime;
 
   factory NodeStatus.fromJson(Map<String, dynamic> json) {
     return NodeStatus(
@@ -46,6 +48,7 @@ class NodeStatus {
       tailscaleIPs: (json['tailscaleIPs'] as List<dynamic>? ?? const []).cast<String>(),
       online: json['online'] as bool? ?? false,
       backendState: json['backendState'] as String? ?? '',
+      runtime: json['runtime'] as String? ?? '',
     );
   }
 }
