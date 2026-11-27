@@ -10,9 +10,9 @@ def parse_request(header):
     return parts[0], path
 
 
-def response_for(method, path, hostname, dns_name, ips, backend_state):
+def response_for(method, path, hostname, dns_name, ips, backend_state, runtime=""):
     if method == "GET" and path == "/status":
-        body = dumps(hostname, dns_name, ips, backend_state)
+        body = dumps(hostname, dns_name, ips, backend_state, runtime=runtime)
         return _response(200, "OK", "application/json", body, allow=False)
     if path == "/status":
         return _response(405, "Method Not Allowed", "text/plain", b"Method Not Allowed\n", allow=True)

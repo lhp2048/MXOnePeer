@@ -22,6 +22,11 @@ class HttpTests(unittest.TestCase):
         body = response_for("GET", "/other", "mxonepeer", "", [], "Offline")
         self.assertTrue(body.startswith(b"HTTP/1.1 404 "))
 
+    def test_get_status_includes_runtime(self):
+        body = response_for("GET", "/status", "mxonepeer", "", ["100.64.0.1"], "Running", runtime="python/linux/amd64")
+        _head, payload = body.split(b"\r\n\r\n", 1)
+        self.assertIn(b'"runtime": "python/linux/amd64"', payload)
+
 
 if __name__ == "__main__":
     unittest.main()

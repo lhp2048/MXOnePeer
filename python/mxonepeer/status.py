@@ -2,21 +2,24 @@ import ipaddress
 import json
 
 
-def document(hostname, dns_name, ips, backend_state):
+def document(hostname, dns_name, ips, backend_state, runtime=""):
     ordered = _order_ips(ips)
     dns = dns_name[0:-1] if dns_name.endswith(".") else dns_name
-    return {
+    result = {
         "hostname": hostname,
         "dnsName": dns,
         "tailscaleIPs": ordered,
         "online": backend_state == "Running" and len(ordered) > 0,
         "backendState": backend_state,
     }
+    if runtime:
+        result["runtime"] = runtime
+    return result
 
 
-def dumps(hostname, dns_name, ips, backend_state):
+def dumps(hostname, dns_name, ips, backend_state, runtime=""):
     return json.dumps(
-        document(hostname, dns_name, ips, backend_state),
+        document(hostname, dns_name, ips, backend_state, runtime=runtime),
         ensure_ascii=False,
     ).encode("utf-8")
 

@@ -2,7 +2,8 @@ import asyncio
 import os
 import sys
 
-from mxonepeer.httpio import parse_request, response_for
+from mxonepeer.httpio import _response, parse_request, response_for
+from mxonepeer.upgrade import EXIT_CODE, decide, runtime_id
 
 HEADER_LIMIT = 8192
 HEADER_TIMEOUT = 5
@@ -77,19 +78,51 @@ async def _accept(dev, listener, stop):
 
 
 async def _handle(dev, stream):
+    should_exit = False
     try:
-        header = await asyncio.wait_for(_read_header(stream), HEADER_TIMEOUT)
-        method, path = parse_request(header)
-        hostname, dns_name, ips, backend = await _snapshot(dev)
-        payload = response_for(method, path, hostname, dns_name, ips, backend)
+        head, rest = await asyncio.wait_for(_read_message(stream), HEADER_TIMEOUT)
+        method, path = parse_request(head)
+        if path == "/upgrade":
+            headers = _header_map(head)
+            try:
+                body = await _read_body(stream, rest, headers)
+            except ValueError as err:
+                if str(err) != "包的内容不正确":
+                    raise
+                payload = _response(400, "Bad Request", "text/plain", "包的内容不正确\n".encode("utf-8"), False)
+                await _send_all(stream, payload)
+                return
+            status, text, should_exit = decide(
+                method,
+                headers,
+                body,
+                runtime_id(),
+                os.path.dirname(os.path.abspath(__file__)),
+            )
+            payload = _upgrade_payload(status, text)
+        else:
+            hostname, dns_name, ips, backend = await _snapshot(dev)
+            payload = response_for(method, path, hostname, dns_name, ips, backend, runtime=runtime_id())
         await _send_all(stream, payload)
     except (asyncio.TimeoutError, ValueError, ConnectionError, OSError):
         return
     finally:
         await _close_stream(stream)
+    if should_exit:
+        sys.exit(EXIT_CODE)
 
 
-async def _read_header(stream):
+def _header_map(head):
+    headers = {}
+    for line in head.split(b"\r\n")[1:]:
+        if b":" not in line:
+            continue
+        name, value = line.split(b":", 1)
+        headers[name.decode("latin1").strip().lower()] = value.decode("latin1").strip()
+    return headers
+
+
+async def _read_message(stream):
     buf = b""
     while b"\r\n\r\n" not in buf:
         if len(buf) > HEADER_LIMIT:
@@ -98,7 +131,34 @@ async def _read_header(stream):
         if not chunk:
             raise ConnectionError("closed")
         buf += chunk
-    return buf.split(b"\r\n\r\n", 1)[0]
+    return buf.split(b"\r\n\r\n", 1)
+
+
+async def _read_body(stream, rest, headers):
+    try:
+        length = int(headers.get("content-length", ""))
+    except ValueError:
+        raise ValueError("包的内容不正确")
+    if length < 0 or length > 64 * 1024 * 1024:
+        raise ValueError("包的内容不正确")
+    buf = bytearray(rest)
+    while len(buf) < length:
+        chunk = await stream.recv()
+        if not chunk:
+            raise ValueError("包的内容不正确")
+        buf += chunk
+    return bytes(buf[:length])
+
+
+def _upgrade_payload(status, text):
+    if status == 204:
+        return _response(204, "No Content", "text/plain", b"", False)
+    reason = {
+        400: "Bad Request",
+        405: "Method Not Allowed",
+        500: "Internal Server Error",
+    }.get(status, "OK")
+    return _response(status, reason, "text/plain", (text + "\n").encode("utf-8"), False)
 
 
 async def _send_all(stream, payload):

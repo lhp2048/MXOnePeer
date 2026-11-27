@@ -33,6 +33,14 @@ class StatusTests(unittest.TestCase):
         self.assertIn("dnsName", raw)
         self.assertIs(raw["online"], False)
 
+    def test_runtime_is_included_when_given(self):
+        got = document("mxonepeer", "", ["100.64.0.1"], "Running", runtime="python/linux/amd64")
+        self.assertEqual(got["runtime"], "python/linux/amd64")
+
+    def test_runtime_is_absent_when_empty(self):
+        raw = json.loads(dumps("mxonepeer", "", [], "Offline"))
+        self.assertNotIn("runtime", raw)
+
 
 if __name__ == "__main__":
     unittest.main()
