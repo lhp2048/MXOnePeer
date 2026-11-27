@@ -124,6 +124,16 @@ class NodeUpgradeTests(unittest.TestCase):
             return
         self.fail("accepted upgrade must raise SystemExit")
 
+    def test_exit_when_send_fails_after_replace(self):
+        class SendFails(FakeStream):
+            async def send(self, data):
+                raise ConnectionError("send failed")
+
+        stream = SendFails(_request(["Content-Length: 0"]))
+        with self.assertRaises(SystemExit) as caught:
+            _run(stream, decide_result=(204, "", True))
+        self.assertEqual(caught.exception.code, 75)
+
 
 if __name__ == "__main__":
     unittest.main()

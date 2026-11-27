@@ -105,9 +105,12 @@ async def _handle(dev, stream):
             payload = response_for(method, path, hostname, dns_name, ips, backend, runtime=runtime_id())
         await _send_all(stream, payload)
     except (asyncio.TimeoutError, ValueError, ConnectionError, OSError):
-        return
+        pass
     finally:
-        await _close_stream(stream)
+        try:
+            await _close_stream(stream)
+        except (ConnectionError, OSError):
+            pass
     if should_exit:
         sys.exit(EXIT_CODE)
 

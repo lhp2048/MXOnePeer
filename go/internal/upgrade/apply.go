@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"sync"
 )
 
 func CheckBinary(runtimeID string, body []byte) error {
@@ -43,7 +44,11 @@ func isMachO(magic []byte) bool {
 
 var renameFn = os.Rename
 
+var applyMu sync.Mutex
+
 func ApplyFile(program string, payload []byte) error {
+	applyMu.Lock()
+	defer applyMu.Unlock()
 	incoming := program + ".incoming"
 	previous := program + ".previous"
 	if err := os.WriteFile(incoming, payload, 0o755); err != nil {

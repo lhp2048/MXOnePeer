@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -105,17 +106,26 @@ class LocalApi {
     List<int> bytes,
   ) async {
     const boundary = 'mxonepeer-upgrade';
-    final response = await _send(
-      'POST',
-      '/upgrade',
-      bytes: _upgradeBody(boundary, ip, runtime, filename, bytes),
-      contentType: ContentType(
-        'multipart',
-        'form-data',
-        parameters: {'boundary': boundary},
-      ),
-      timeout: const Duration(seconds: 120),
-    );
+    final _HttpBody response;
+    try {
+      response = await _send(
+        'POST',
+        '/upgrade',
+        bytes: _upgradeBody(boundary, ip, runtime, filename, bytes),
+        contentType: ContentType(
+          'multipart',
+          'form-data',
+          parameters: {'boundary': boundary},
+        ),
+        timeout: const Duration(seconds: 120),
+      );
+    } on TimeoutException {
+      throw LocalApiException('传不上去');
+    } on SocketException {
+      throw LocalApiException('传不上去');
+    } on IOException {
+      throw LocalApiException('传不上去');
+    }
     if (response.statusCode == 204) {
       return;
     }

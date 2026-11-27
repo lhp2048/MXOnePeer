@@ -32,6 +32,7 @@ class NodeDetailPage extends StatefulWidget {
 class _NodeDetailPageState extends State<NodeDetailPage> {
   NodeStatus? _status;
   bool _failed = false;
+  bool _sending = false;
   UpgradePick? _pick;
   String? _message;
 
@@ -82,9 +83,12 @@ class _NodeDetailPageState extends State<NodeDetailPage> {
     final pick = _pick;
     final status = _status;
     final sendUpgrade = widget.sendUpgrade;
-    if (pick == null || status == null || sendUpgrade == null) {
+    if (pick == null || status == null || sendUpgrade == null || _sending) {
       return;
     }
+    setState(() {
+      _sending = true;
+    });
     try {
       await sendUpgrade(status.runtime, pick.name, pick.bytes);
       if (!mounted) return;
@@ -96,6 +100,12 @@ class _NodeDetailPageState extends State<NodeDetailPage> {
       setState(() {
         _message = '$error';
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
     }
   }
 
@@ -127,7 +137,7 @@ class _NodeDetailPageState extends State<NodeDetailPage> {
               child: const Text('选择文件'),
             ),
             FilledButton(
-              onPressed: _pick == null ? null : _send,
+              onPressed: _pick == null || _sending ? null : _send,
               child: const Text('发送'),
             ),
             if (_pick != null) Text(_pick!.name),
