@@ -114,6 +114,7 @@ class LocalApi {
         'form-data',
         parameters: {'boundary': boundary},
       ),
+      timeout: const Duration(seconds: 120),
     );
     if (response.statusCode == 204) {
       return;
@@ -130,6 +131,7 @@ class LocalApi {
     String? body,
     List<int>? bytes,
     ContentType? contentType,
+    Duration timeout = const Duration(seconds: 3),
   }) async {
     final request = await _client.openUrl(method, Uri.parse('$baseUrl$path'));
     if (body != null) {
@@ -139,11 +141,8 @@ class LocalApi {
       request.headers.contentType = contentType;
       request.add(bytes);
     }
-    final response = await request.close().timeout(const Duration(seconds: 3));
-    final text = await utf8.decoder
-        .bind(response)
-        .join()
-        .timeout(const Duration(seconds: 3));
+    final response = await request.close().timeout(timeout);
+    final text = await utf8.decoder.bind(response).join().timeout(timeout);
     return _HttpBody(response.statusCode, text);
   }
 
