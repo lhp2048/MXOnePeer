@@ -12,6 +12,7 @@ type Document struct {
 	TailscaleIPs []string `json:"tailscaleIPs"`
 	Online       bool     `json:"online"`
 	BackendState string   `json:"backendState"`
+	Runtime      string   `json:"runtime,omitempty"`
 }
 
 func Build(hostname, dnsName string, ips []netip.Addr) Document {

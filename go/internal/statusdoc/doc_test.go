@@ -1,6 +1,7 @@
 package statusdoc
 
 import (
+	"encoding/json"
 	"net/netip"
 	"strings"
 	"testing"
@@ -23,5 +24,18 @@ func TestOrderAndDNS(t *testing.T) {
 	empty := Build("", "", nil)
 	if empty.Online || empty.BackendState != "Offline" || strings.Contains(string(JSON("", "", nil)), "null") {
 		t.Fatalf("empty %#v %s", empty, JSON("", "", nil))
+	}
+}
+
+func TestRuntimeOmittedWhenEmpty(t *testing.T) {
+	raw := string(JSON("mxonepeer", "", nil))
+	if strings.Contains(raw, "runtime") {
+		t.Fatalf("empty runtime leaked %s", raw)
+	}
+	doc := Build("mxonepeer", "", nil)
+	doc.Runtime = "go/linux/amd64"
+	body, _ := json.Marshal(doc)
+	if !strings.Contains(string(body), `"runtime":"go/linux/amd64"`) {
+		t.Fatalf("runtime %s", body)
 	}
 }

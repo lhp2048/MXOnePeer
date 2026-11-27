@@ -16,6 +16,7 @@ import (
 	"github.com/lhp2048/MXOnePeer/go/internal/clientapi"
 	"github.com/lhp2048/MXOnePeer/go/internal/statusdoc"
 	"github.com/lhp2048/MXOnePeer/go/internal/store"
+	"github.com/lhp2048/MXOnePeer/go/internal/upgrade"
 	"tailscale.com/client/local"
 	"tailscale.com/tsnet"
 )
@@ -207,10 +208,12 @@ func (l *Live) publish(ctx context.Context, client *local.Client, requested stri
 	if err != nil || status == nil {
 		return
 	}
-	doc := statusdoc.Document{}
+	doc := statusdoc.Build("", "", nil)
+	doc.Runtime = upgrade.Current("client")
 	self := clientapi.Node{Hostname: requested, Self: true}
 	if status.Self != nil {
 		doc = statusdoc.Build(status.Self.HostName, status.Self.DNSName, status.Self.TailscaleIPs)
+		doc.Runtime = upgrade.Current("client")
 		self = clientapi.Node{Hostname: doc.Hostname, DNSName: doc.DNSName, TailscaleIPs: doc.TailscaleIPs, Self: true}
 	}
 	ips := clientapi.NonNil(doc.TailscaleIPs)
@@ -255,8 +258,10 @@ func tailStatus(client *local.Client) http.Handler {
 		defer cancel()
 		status, err := client.Status(ctx)
 		doc := statusdoc.Build("", "", nil)
+		doc.Runtime = upgrade.Current("client")
 		if err == nil && status != nil && status.Self != nil {
 			doc = statusdoc.Build(status.Self.HostName, status.Self.DNSName, status.Self.TailscaleIPs)
+			doc.Runtime = upgrade.Current("client")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(doc)

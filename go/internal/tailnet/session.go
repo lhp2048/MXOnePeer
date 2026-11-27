@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/lhp2048/MXOnePeer/go/internal/adminboard"
 	"github.com/lhp2048/MXOnePeer/go/internal/statusdoc"
+	"github.com/lhp2048/MXOnePeer/go/internal/upgrade"
 	"tailscale.com/client/local"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tsnet"
@@ -61,8 +64,16 @@ func Run(parent context.Context, cfg Config, board *adminboard.Board) error {
 	if err != nil {
 		return err
 	}
+	program, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	program, err = filepath.EvalSymlinks(program)
+	if err != nil {
+		return err
+	}
 	httpServer := &http.Server{
-		Handler:           statusHandler(client),
+		Handler:           upgrade.Routes(statusHandler(client), upgrade.Current("go"), program, os.Exit),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() { _ = httpServer.Serve(listener) }()
@@ -119,10 +130,14 @@ func publish(ctx context.Context, client *local.Client, board *adminboard.Board,
 }
 
 func document(status *ipnstate.Status) statusdoc.Document {
+	var doc statusdoc.Document
 	if status == nil || status.Self == nil {
-		return statusdoc.Build("", "", nil)
+		doc = statusdoc.Build("", "", nil)
+	} else {
+		doc = statusdoc.Build(status.Self.HostName, status.Self.DNSName, status.Self.TailscaleIPs)
 	}
-	return statusdoc.Build(status.Self.HostName, status.Self.DNSName, status.Self.TailscaleIPs)
+	doc.Runtime = upgrade.Current("go")
+	return doc
 }
 
 func statusHandler(client *local.Client) http.Handler {
@@ -143,6 +158,7 @@ func statusHandler(client *local.Client) http.Handler {
 		if err == nil {
 			doc = document(status)
 		}
+		doc.Runtime = upgrade.Current("go")
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(doc)
 		_, _ = w.Write(body)
