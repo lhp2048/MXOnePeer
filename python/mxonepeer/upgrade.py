@@ -44,8 +44,9 @@ def check_zip(data):
             name = info.filename
             if "\\" in name or name.startswith("/") or (len(name) >= 2 and name[1] == ":"):
                 return _BAD
-            parts = [part for part in name.split("/") if part != ""]
-            if not parts or ".." in parts or parts[0] != "mxonepeer" or not name.startswith("mxonepeer/"):
+            if not name.startswith("mxonepeer/"):
+                return _BAD
+            if any(".." in part or ":" in part for part in name.split("/")):
                 return _BAD
             if (info.external_attr >> 16) & 0o170000 == 0o120000:
                 return _BAD
@@ -68,9 +69,15 @@ def apply_tree(program_dir, data):
     os.makedirs(incoming)
     try:
         _extract(data, incoming)
-    except (OSError, zipfile.BadZipFile, ValueError):
+    except OSError:
+        shutil.rmtree(incoming, ignore_errors=True)
+        raise OSError("写不进去")
+    except zipfile.BadZipFile:
         shutil.rmtree(incoming, ignore_errors=True)
         raise ValueError(_BAD)
+    except ValueError:
+        shutil.rmtree(incoming, ignore_errors=True)
+        raise
     try:
         if os.path.exists(previous):
             shutil.rmtree(previous)
@@ -93,6 +100,10 @@ def _extract(data, incoming):
                 continue
             rel = info.filename[len("mxonepeer/"):]
             target = os.path.join(incoming, *rel.split("/"))
+            root = os.path.realpath(incoming)
+            resolved = os.path.realpath(target)
+            if resolved != root and not resolved.startswith(root + os.sep):
+                raise ValueError(_BAD)
             parent = os.path.dirname(target)
             if parent:
                 os.makedirs(parent, exist_ok=True)

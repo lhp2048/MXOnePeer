@@ -26,6 +26,15 @@ class UpgradeTests(unittest.TestCase):
         payload = _zip([("mxonepeer/../../outside.txt", "x"), ("mxonepeer/__init__.py", ""), ("mxonepeer/__main__.py", "")])
         self.assertEqual(check_zip(payload), "包的内容不正确")
 
+    def test_zip_rejects_colon_in_segment(self):
+        for name in ("mxonepeer/D:outside.txt", "mxonepeer/C:../outside.txt"):
+            payload = _zip([
+                (name, "x"),
+                ("mxonepeer/__init__.py", ""),
+                ("mxonepeer/__main__.py", ""),
+            ])
+            self.assertEqual(check_zip(payload), "包的内容不正确")
+
     def test_apply_keeps_previous(self):
         payload = _zip([
             ("mxonepeer/__init__.py", "new"),
