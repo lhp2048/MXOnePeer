@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'node.dart';
 import 'session.dart';
@@ -97,11 +98,46 @@ class LocalApi {
     return NodeStatus.fromJson(_object(response.body));
   }
 
-  Future<_HttpBody> _send(String method, String path, {String? body}) async {
+  Future<void> uploadPackage(
+    String ip,
+    String runtime,
+    String filename,
+    List<int> bytes,
+  ) async {
+    const boundary = 'mxonepeer-upgrade';
+    final response = await _send(
+      'POST',
+      '/upgrade',
+      bytes: _upgradeBody(boundary, ip, runtime, filename, bytes),
+      contentType: ContentType(
+        'multipart',
+        'form-data',
+        parameters: {'boundary': boundary},
+      ),
+    );
+    if (response.statusCode == 204) {
+      return;
+    }
+    if (response.statusCode == 400 || response.statusCode == 500) {
+      throw LocalApiException(_errorField(response.body));
+    }
+    throw LocalApiException('传不上去');
+  }
+
+  Future<_HttpBody> _send(
+    String method,
+    String path, {
+    String? body,
+    List<int>? bytes,
+    ContentType? contentType,
+  }) async {
     final request = await _client.openUrl(method, Uri.parse('$baseUrl$path'));
     if (body != null) {
-      request.headers.contentType = ContentType.json;
+      request.headers.contentType = contentType ?? ContentType.json;
       request.write(body);
+    } else if (bytes != null) {
+      request.headers.contentType = contentType;
+      request.add(bytes);
     }
     final response = await request.close().timeout(const Duration(seconds: 3));
     final text = await utf8.decoder
@@ -124,6 +160,55 @@ class LocalApi {
       }
     } catch (_) {}
     return null;
+  }
+
+  String _errorField(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] is String) {
+        return decoded['error'] as String;
+      }
+    } catch (_) {}
+    return body.trim();
+  }
+
+  List<int> _upgradeBody(
+    String boundary,
+    String ip,
+    String runtime,
+    String filename,
+    List<int> bytes,
+  ) {
+    final buffer = BytesBuilder();
+    void addText(String text) {
+      buffer.add(utf8.encode(text));
+    }
+
+    void addField(String name, String value) {
+      addText('--$boundary\r\n');
+      addText('Content-Disposition: form-data; name="$name"\r\n\r\n');
+      addText('$value\r\n');
+    }
+
+    addField('ip', ip);
+    addField('runtime', runtime);
+    addText('--$boundary\r\n');
+    addText(
+      'Content-Disposition: form-data; name="package"; filename="${_basename(filename)}"\r\n',
+    );
+    addText('Content-Type: application/octet-stream\r\n\r\n');
+    buffer.add(bytes);
+    addText('\r\n--$boundary--\r\n');
+    return buffer.takeBytes();
+  }
+
+  String _basename(String filename) {
+    var name = filename.replaceAll('\\', '/');
+    final slash = name.lastIndexOf('/');
+    if (slash >= 0) {
+      name = name.substring(slash + 1);
+    }
+    return name;
   }
 }
 

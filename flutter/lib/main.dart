@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -281,6 +282,21 @@ class _EngineHomeState extends ConsumerState<EngineHome> {
               return Future<NodeStatus>.error(LocalApiException('读不到状态'));
             }
             return ref.read(localApiProvider).nodeStatus(address);
+          },
+          pickUpgrade: () async {
+            final file = await openFile();
+            if (file == null) {
+              return null;
+            }
+            return UpgradePick(file.name, await file.readAsBytes());
+          },
+          sendUpgrade: (runtime, filename, bytes) {
+            return ref.read(localApiProvider).uploadPackage(
+              ip,
+              runtime,
+              filename,
+              bytes,
+            );
           },
         ),
       ),
