@@ -51,8 +51,16 @@ if (-not (Test-Path $envFile)) {
     & icacls $envFile /inheritance:r /grant:r "${env:USERNAME}:(R,W)" | Out-Null
 }
 
-$taskArgs = "--hostname mxonepeer --state-dir `"$dest`" --port 18020 --admin-host 127.0.0.1 --admin-port 8788"
-$action = New-ScheduledTaskAction -Execute $installed -Argument $taskArgs -WorkingDirectory $dest
+$runner = Join-Path $dest 'run.cmd'
+@"
+@echo off
+:loop
+"$installed" --hostname mxonepeer --state-dir "$dest" --port 18020 --admin-host 127.0.0.1 --admin-port 8788
+ping -n 6 127.0.0.1 >nul
+goto loop
+"@ | Set-Content -Path $runner -Encoding Default
+
+$action = New-ScheduledTaskAction -Execute $runner -WorkingDirectory $dest
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `

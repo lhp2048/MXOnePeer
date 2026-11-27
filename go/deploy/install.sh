@@ -27,8 +27,8 @@ if ! id mxonepeer >/dev/null 2>&1; then
 fi
 
 install -d -m 0750 -o mxonepeer -g mxonepeer /var/lib/mxonepeer
-install -d -m 0755 /opt/mxonepeer
-install -m 0755 -o root -g root "$bin" /opt/mxonepeer/mxonepeer
+install -d -m 0755 -o mxonepeer -g mxonepeer /opt/mxonepeer
+install -m 0755 -o mxonepeer -g mxonepeer "$bin" /opt/mxonepeer/mxonepeer
 install -m 0644 "$root/deploy/mxonepeer.service" /etc/systemd/system/mxonepeer.service
 
 if [ ! -f /etc/mxonepeer.env ]; then

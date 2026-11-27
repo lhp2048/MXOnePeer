@@ -76,10 +76,7 @@ cat > "$plist" <<EOF
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
+  <true/>
   <key>StandardOutPath</key>
   <string>$(xml_escape "$HOME/Library/Logs/mxonepeer.log")</string>
   <key>StandardErrorPath</key>

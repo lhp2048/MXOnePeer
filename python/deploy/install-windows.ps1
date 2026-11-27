@@ -98,7 +98,10 @@ if exist "%DEST%\env" (
     if /I "%%A"=="TS_AUTHKEY" if not "%%B"=="" set "TS_AUTHKEY=%%B"
   )
 )
+:loop
 "%DEST%\venv\Scripts\python.exe" -m mxonepeer --hostname mxonepeer --state-dir "%DEST%" --port 18020 --admin-host 127.0.0.1 --admin-port 8788 >> "%DEST%\mxonepeer.log" 2>&1
+ping -n 6 127.0.0.1 >nul
+goto loop
 "@ | Set-Content -Path $runner -Encoding Default
 
 $action = New-ScheduledTaskAction -Execute $runner -WorkingDirectory $dest

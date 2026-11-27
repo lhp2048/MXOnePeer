@@ -18,10 +18,10 @@ if ! id mxonepeer >/dev/null 2>&1; then
 fi
 
 install -d -m 0750 -o mxonepeer -g mxonepeer /var/lib/mxonepeer
-install -d -m 0755 /opt/mxonepeer
+install -d -m 0755 -o mxonepeer -g mxonepeer /opt/mxonepeer
 rm -rf /opt/mxonepeer/mxonepeer
 cp -a "$root/mxonepeer" /opt/mxonepeer/mxonepeer
-chown -R root:root /opt/mxonepeer/mxonepeer
+chown -R mxonepeer:mxonepeer /opt/mxonepeer/mxonepeer
 
 if [ ! -x /opt/mxonepeer/venv/bin/python ]; then
   if ! python3 -m venv /opt/mxonepeer/venv; then

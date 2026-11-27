@@ -9,7 +9,7 @@ Group=mxonepeer
 WorkingDirectory=/var/lib/mxonepeer
 EnvironmentFile=/etc/mxonepeer.env
 ExecStart=/opt/mxonepeer/mxonepeer --hostname mxonepeer --state-dir /var/lib/mxonepeer --port 18020 --admin-host 127.0.0.1 --admin-port 8788
-Restart=on-failure
+Restart=always
 RestartSec=5
 NoNewPrivileges=true
 
